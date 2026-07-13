@@ -34,22 +34,45 @@ The important design decision: **Diane stays the engine room. Final invoices sho
 
 Next step: turn the final invoice builder into a repeatable flow that reads from `INVOICE_LINES`, splits by broker/driver, creates standalone invoice files, exports PDFs, and queues the broker delivery packet.
 
-## 2026-07-13: Diane 2.0 Airtable Migration and Scenario 05 Rebuild
+## 2026-07-13: Scenario 05 Airtable Migration - Corrected Checkpoint
 
-The Diane 2.0 Airtable migration continued with the relational operating layer taking shape around the core configuration and ticket workflow tables. The build remains incremental and recent-window oriented, with Airtable handling structured operational records while source documents stay in Google Drive/Motive and Make handles movement between systems.
+Scenario 05 is a **migration, not a rebuild**. The existing OCR workflow is valuable and remains in place. The goal is to replace Google Sheets storage with Airtable while preserving the working downstream Make modules.
 
-Scenario 05, the OCR workflow, was rebuilt far enough to validate its file handoff. The key blocker was the Google Drive download step: Airtable’s source file ID was passed into Google Drive Download a File, and the module successfully returned the expected JPEG file and metadata.
+The original working sequence at the front of Scenario 05 was:
 
-Current Scenario 05 checkpoint:
+```
+[1] Google Sheets Search Rows
+        ↓
+[5] Download Cleaned File
+        ↓
+[25] Route by File Type
+        ├── Image → [21] OCR Image File
+        └── PDF/TIFF → existing PDF OCR path
+```
+
+The intended migrated sequence is:
 
 ```
 [43] Airtable Search Records (Tickets)
         ↓
-[45] Google Drive Download a File ✅
+[5] Download Cleaned File
         ↓
-[25] Router File Type
-        ├── Image → OCR Image File
-        └── PDF → OCR PDF/TIFF
+[25] Route by File Type
+        ├── Image → [21] OCR Image File
+        └── PDF/TIFF → existing PDF OCR path
 ```
 
-Status: the Drive handoff is confirmed. The next build step is wiring and testing [25] Router File Type from the verified [45] output, then continuing into the OCR branches. Scheduling remains disabled until the rebuilt path is fully tested.
+### Debugging correction
+
+`[43]` was originally created against the **Tickets** table, which was correct. During troubleshooting it was incorrectly changed to **OCR Runs**. OCR Runs currently contains three blank placeholder records, so Make returned only record IDs and created times. That change produced roughly 30 minutes of avoidable rework and was reversed.
+
+`[5] Download Cleaned File` is still required. Replacing Google Sheets with Airtable does not remove the file-download step.
+
+### Current status
+
+- `[43]` is back on **Tickets**.
+- `[43] → [5] → [25]` is the correct front-end sequence.
+- The existing OCR branches remain unchanged.
+- `[43]` has not yet been fully validated as a replacement for `[1]`.
+- Next step: configure and test `[43]` against real Ticket records, verify its output, then inspect and test `[5]`.
+- Scheduling remains disabled until the migrated path is verified module by module.
