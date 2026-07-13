@@ -33,3 +33,23 @@ Both invoices were reviewed, cleaned up, and sent to the broker.
 The important design decision: **Diane stays the engine room. Final invoices should be separate files.** That keeps the automation workbook clean while still producing broker-ready documents that can be attached to QBO invoices and emailed for payment.
 
 Next step: turn the final invoice builder into a repeatable flow that reads from `INVOICE_LINES`, splits by broker/driver, creates standalone invoice files, exports PDFs, and queues the broker delivery packet.
+
+## 2026-07-13: Diane 2.0 Airtable Migration and Scenario 05 Rebuild
+
+The Diane 2.0 Airtable migration continued with the relational operating layer taking shape around the core configuration and ticket workflow tables. The build remains incremental and recent-window oriented, with Airtable handling structured operational records while source documents stay in Google Drive/Motive and Make handles movement between systems.
+
+Scenario 05, the OCR workflow, was rebuilt far enough to validate its file handoff. The key blocker was the Google Drive download step: Airtable’s source file ID was passed into Google Drive Download a File, and the module successfully returned the expected JPEG file and metadata.
+
+Current Scenario 05 checkpoint:
+
+```
+[43] Airtable Search Records (Tickets)
+        ↓
+[45] Google Drive Download a File ✅
+        ↓
+[25] Router File Type
+        ├── Image → OCR Image File
+        └── PDF → OCR PDF/TIFF
+```
+
+Status: the Drive handoff is confirmed. The next build step is wiring and testing [25] Router File Type from the verified [45] output, then continuing into the OCR branches. Scheduling remains disabled until the rebuilt path is fully tested.
