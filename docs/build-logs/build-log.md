@@ -1,5 +1,138 @@
 # Project Diane Build Log
 
+## 2026-07-14: Recovering the Document AI bridge and creating the Airtable extractor
+
+This work continued the Diane 2.0 migration from the Google Sheets OCR queue to Airtable. The immediate goal was to replace the missing Scenario 06 Document AI bridge without changing the working Diane review app or the existing stamping service.
+
+### What was recovered
+
+The old `punkrocknerdgirl/diane-tools-api` source repository and local checkout were no longer available, but the deployed Cloud Run artifact was still present. We recovered the image from Artifact Registry:
+
+```text
+us-central1-docker.pkg.dev/infra-window-494823-r0/cloud-run-source-deploy/diane-tools-api/diane-tools-api@sha256:eed9bb04727dd23d05d6eb9b71bacabbbd445e2808a8803548467a75b26138b8
+```
+
+The image contained only `/app/app.py` and `/app/requirements.txt`. Its entrypoint was `uvicorn app:app --host 0.0.0.0 --port 8080`.
+
+The recovered service was not the lost Document AI bridge. It is the existing PDF/image stamping service:
+
+- `GET /health`
+- `POST /stamp/tnb`
+- accepts PDF or image uploads
+- converts images to PDF with Pillow
+- stamps a boxed label onto each PDF page with PyMuPDF
+- returns a stamped PDF
+
+That service remains separate and was not modified.
+
+### Existing Document AI capability
+
+The Google Document AI processor still exists and is enabled:
+
+```text
+Display name: Diane Ticket Extractor
+Type: CUSTOM_EXTRACTION_PROCESSOR
+Processor: projects/413667913571/locations/us/processors/61c933f67dba23a3
+Version: pretrained-foundation-model-v1.5-pro-2025-06-20
+State: DEPLOYED
+```
+
+The dedicated service account also exists and has the required Document AI project role:
+
+```text
+diane-document-ai-parser@infra-window-494823-r0.iam.gserviceaccount.com
+```
+
+### New service created
+
+Because the old bridge source was gone, we created a new separate Cloud Run service rather than changing the working `diane-tools-api` or the Diane review-app Apps Script:
+
+```text
+Service: diane-ticket-extractor
+URL: https://diane-ticket-extractor-413667913571.us-central1.run.app
+Revision: diane-ticket-extractor-00002-vzn
+Region: us-central1
+Processor: Diane Ticket Extractor custom extraction processor
+```
+
+The initial image was built with Cloud Build and deployed privately. A second authenticated image was then built and deployed with the application-level API-key check. Cloud Run's invoker check was disabled so Make can reach the service; the extraction endpoint still requires the application header described below. No API key is stored in this repository.
+
+Build/deploy shape used during recovery:
+
+```bash
+gcloud builds submit . \
+  --tag us-central1-docker.pkg.dev/infra-window-494823-r0/cloud-run-source-deploy/diane-ticket-extractor/diane-ticket-extractor:20260714-auth \
+  --timeout=1200s
+
+gcloud run deploy diane-ticket-extractor \
+  --image us-central1-docker.pkg.dev/infra-window-494823-r0/cloud-run-source-deploy/diane-ticket-extractor/diane-ticket-extractor:20260714-auth \
+  --region us-central1 \
+  --service-account diane-document-ai-parser@infra-window-494823-r0.iam.gserviceaccount.com \
+  --memory 1Gi \
+  --timeout 300s \
+  --allow-unauthenticated
+```
+
+The real deployment also supplied the processor environment variables and the API key through Cloud Run configuration. Those values are intentionally omitted here.
+
+### Recovered architecture decision
+
+The Airtable migration changes the queue and storage layer, not the Document AI processor:
+
+```text
+Airtable Tickets
+  -> Make Scenario 05 OCR
+  -> Airtable OCR Outputs / OCR Runs
+  -> Scenario 06 selects Tickets with OCR Outputs and no Parser Outputs
+  -> Google Drive source file
+  -> diane-ticket-extractor /extract/ticket
+  -> Make writes Airtable Parser Outputs
+  -> validation/review layer
+```
+
+The old Sheets fields `Submission ID` and `Cleaned File ID` are not recreated. The current v2 correlation is the Airtable Ticket record / Ticket Key, and the file input is `Tickets.Source File ID`. Parser Outputs should link back to the Ticket and OCR Output records.
+
+### Code-level retrieval notes
+
+The recovered `diane-tools-api` container can be inspected again without the missing GitHub checkout:
+
+```bash
+docker pull us-central1-docker.pkg.dev/infra-window-494823-r0/cloud-run-source-deploy/diane-tools-api/diane-tools-api@sha256:eed9bb04727dd23d05d6eb9b71bacabbbd445e2808a8803548467a75b26138b8
+docker run --rm --entrypoint sh <image> -lc 'find /app -maxdepth 3 -type f -print | sort'
+```
+
+The recovered `app.py` architecture is intentionally summarized here rather than copied into the public repo. It defines a FastAPI app, `/health`, image-to-PDF normalization, PDF stamping, and `/stamp/tnb`. It does not call Document AI, download Drive files, or parse ticket entities.
+
+The new extractor's source was created in Cloud Shell as `~/diane-ticket-extractor` with `app.py`, `requirements.txt`, and `Dockerfile`. Its code-level contract is:
+
+- `GET /health` returns service and processor identity.
+- `POST /extract/ticket` accepts multipart `file` and optional `submission_id`.
+- Accepted MIME types are PDF, JPEG, PNG, TIFF, and WebP.
+- The service sends the raw bytes and MIME type to Document AI's `ProcessRequest`.
+- Entity values are returned dynamically under `data.fields`.
+- Per-field confidence values are returned under `data.confidence`.
+- A flat audit-friendly entity list is returned under `data.entities`.
+- The endpoint requires `X-Diane-API-Key`; the key is stored only in Cloud Run configuration.
+
+### Verification and remaining work
+
+Completed:
+
+- recovered and inspected the old Cloud Run artifact
+- proved it was the TNB stamping service, not the Document AI bridge
+- confirmed the Document AI processor is enabled and deployed
+- confirmed the dedicated parser service account
+- built and deployed `diane-ticket-extractor`
+- verified the private health endpoint before opening Make access
+
+Remaining:
+
+1. Verify the public `/health` response after the invoker-check update.
+2. Test `/extract/ticket` with one known Diane source file and inspect the actual entity names and confidence values.
+3. Update Scenario 06 module [5] to send the downloaded file to `/extract/ticket` with the API-key header and `submission_id`/Ticket Key.
+4. Replace the old parser-output mappings with Airtable Parser Outputs links and the observed Document AI entity names.
+5. Run one end-to-end ticket through OCR, extraction, Parser Outputs, and review before increasing the batch limit.
+
 ## 2026-06-28: Scenario 10 Invoice Builder
 
 Tonight was supposed to be a quick check of the Statewide Materials invoice flow. Instead, it became a repair-and-build session, which is usually how automation tells you where the real work lives.

@@ -1,6 +1,6 @@
 # Diane Current Build Doc
 
-_Last updated: 2026-07-05_
+_Last updated: 2026-07-14_
 
 ## Purpose
 
@@ -99,6 +99,25 @@ Airtable should replace the messy spreadsheet-as-database layer, not the full wo
 - `Blocked`
 
 ## OCR next obstacle
+
+### Document AI bridge status (2026-07-14)
+
+The missing old Document AI bridge was not found in the recovered `diane-tools-api` Cloud Run artifact. That artifact is the separate TNB PDF/image stamping service at `https://diane-tools-api-baxx73vdnq-uc.a.run.app` (revision `diane-tools-api-00030-stl`). Its source and endpoints are documented in [`docs/build-logs/build-log.md`](build-logs/build-log.md).
+
+The existing Google Document AI custom extractor remains enabled, so Diane now has a separate bridge service: `diane-ticket-extractor`, at `https://diane-ticket-extractor-413667913571.us-central1.run.app`, revision `diane-ticket-extractor-00002-vzn`. The service accepts a source PDF/image, calls the existing processor, and returns dynamic entity values plus confidence data for Make to write into Airtable `Parser Outputs`.
+
+The intended v2 path is:
+
+```text
+Tickets.Source File ID
+  -> Scenario 05 OCR
+  -> OCR Outputs / OCR Runs
+  -> Scenario 06
+  -> diane-ticket-extractor /extract/ticket
+  -> Parser Outputs
+```
+
+The current service requires an `X-Diane-API-Key` header. The key is not documented here or committed to GitHub. The next validation is one real ticket through extraction, followed by precise Scenario 06 mappings based on the processor's observed entity names.
 
 After the Airtable conversion and Make scenario updates, OCR quality becomes the next dragon in the hallway.
 
