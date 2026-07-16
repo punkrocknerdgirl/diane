@@ -166,3 +166,112 @@ AND(
 - no duplicate Parser Outputs created
 
 **Overall status:** Scenario 03 is complete and the production backlog run is validated. Scenario 05 remains in migration validation; scheduling stays disabled until that path is verified module by module.
+
+
+## 2026-07-15: Human Review Layer / Airtable — COMPLETE
+
+The Airtable human review layer was built and tested successfully. Review remains batch-based: shared values are entered once on a Review Batch, then applied to its linked Validation Queue records before approved values are eventually processed downstream to Tickets.
+
+### Review Batches table
+
+Created the new **Review Batches** table to support batch-based human review before approved values are written to Tickets.
+
+Key fields:
+
+- Review Batch Key
+- Batch Status
+- Validation Queue link
+- Broker
+- Customer / Job
+- PO Number
+- Work Order / Order
+- Origin
+- Destination
+- Truck
+- Driver
+- Rate
+- Batch Notes
+- Reviewer
+- Approved At
+- Ticket Count
+- Total Quantity
+- Invoice Total
+- Apply Batch Fields
+- Do Not Bill
+
+### Validation Queue schema additions
+
+Added:
+
+- Final Customer / Job
+- Final PO Number
+- Final Work Order / Order
+- Final Origin
+- Final Destination
+- Reviewer
+- Do Not Bill
+- Processed to Tickets
+- Processed At
+
+### Airtable automation: Apply Review Batch Fields
+
+Built and enabled the Airtable automation **Apply Review Batch Fields**.
+
+**Trigger:** When a Review Batches record matches `Apply Batch Fields` is checked.
+
+**Action:** Run a script.
+
+Behavior:
+
+- reads the Review Batch
+- reads all linked Validation Queue records
+- copies shared batch values into each linked validation record
+- maps Broker → Final Broker
+- maps Customer / Job → Final Customer / Job
+- maps PO Number → Final PO Number
+- maps Work Order / Order → Final Work Order / Order
+- maps Origin → Final Origin
+- maps Destination → Final Destination
+- maps Truck → Final Truck
+- maps Driver → Final Driver
+- maps Rate → Final Rate
+- updates up to 50 records per batch operation
+- unchecks `Apply Batch Fields` after completion
+- sets `Batch Status` to `In Review`
+- outputs `updatedCount`
+
+### Test result
+
+Tested successfully with temporary batch `TEST_APPLY_BATCH_FIELDS_20260715`.
+
+The linked Validation Queue record received:
+
+- **Final Customer / Job:** Automation Test Job
+- **Final PO Number:** TEST-PO
+- **Final Work Order / Order:** TEST-WO
+- **Final Origin:** Automation Test Origin
+- **Final Destination:** Automation Test Destination
+- **Final Rate:** 1.00
+
+Broker, Truck, and Driver remained blank because the test batch did not contain values for those fields. The automation was renamed **Apply Review Batch Fields** and is **ON**.
+
+### Current next step
+
+Build the Airtable interface **Diane Ticket Review** with this behavior:
+
+- open a Review Batch
+- edit shared batch fields at the top
+- view linked Validation Queue tickets below
+- open individual tickets for ticket-level corrections
+- use Apply Batch Fields from the interface
+- later add batch approval logic and downstream approved Validation Queue → Tickets processing
+
+### Architecture notes
+
+- Old Apps Script review behavior is being migrated into Airtable.
+- Review remains batch-based.
+- Invoice Batches remain separate and downstream from Review Batches.
+- Scenario 03 already creates Parser Outputs and Validation Queue records, so old Scenario 07 is not being rebuilt separately.
+- The future downstream automation replaces old Scenario 09 VALIDATION → TICKETS_CLEAN.
+
+**Overall status:** Scenario 03 remains complete. The Airtable human review layer is built and tested; the next build item is the Diane Ticket Review interface, followed by batch approval and downstream approved Validation Queue → Tickets processing.
