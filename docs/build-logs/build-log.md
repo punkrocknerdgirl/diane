@@ -76,3 +76,93 @@ The intended migrated sequence is:
 - `[43]` has not yet been fully validated as a replacement for `[1]`.
 - Next step: configure and test `[43]` against real Ticket records, verify its output, then inspect and test `[5]`.
 - Scheduling remains disabled until the migrated path is verified module by module.
+
+## 2026-07-15: Scenario 03 — Document AI Ticket Extractor — COMPLETE
+
+Scenario 03 is **COMPLETE**. The final production Make flow is:
+
+```
+[12] Airtable Search Records
+    →
+[4] Google Drive Download a File
+    →
+[5] HTTP POST to Cloud Run
+    →
+Airtable Create Record: Parser Outputs
+    →
+[14] Airtable Create Record: Validation Queue
+    →
+[16] Airtable Update Record: Tickets
+```
+
+Cloud Run endpoint:
+
+`https://diane-ticket-extractor-413667913571.us-central1.run.app/extract/ticket`
+
+### HTTP [5]
+
+- **Method:** POST
+- **Header:** `X-Diane-API-Key`
+- **Body type:** `multipart/form-data`
+- **file:** `[4] Data`
+- **filename:** `[4] Name`
+- **submission_id:** `[12] Ticket Key`
+- **cleaned_file_id:** `[12] Source File ID`
+- **Parse response:** Yes
+
+### [12] Airtable Search Records
+
+- **Table:** Tickets
+- **Formula:**
+
+```
+AND(
+  {Source File ID} != "",
+  COUNTA({OCR Outputs}) > 0,
+  COUNTA({Parser Outputs}) = 0
+)
+```
+
+- **Production limit:** 75
+
+### Parser Outputs mappings
+
+- **Name:** `[5] submission_id`
+- **Parser Run ID:** `[5] submission_id`
+- **Ticket:** `[12] Airtable Record ID`
+- **Parser Status:** `Needs Review`
+- **Parsed Ticket Number:** `[5] ticket_number`
+- **Parsed Ticket Date:** `[5] ticket_date`
+- **Parsed Truck:** `[5] truck`
+- **Parsed Material:** `[5] material`
+- **Parsed Quantity:** `[5] quantity_tons`
+
+### Validation Queue mappings
+
+- **Validation ID:** `VAL_` + `[5] submission_id`
+- **Parser Output:** Airtable Record ID from the Parser Outputs Create Record module
+- **Ticket:** `[12] Airtable Record ID`
+- **Review Status:** `Pending Review`
+- **Final Ticket Number:** `[5] ticket_number`
+- **Final Ticket Date:** `[5] ticket_date`
+- **Final Truck:** `[5] truck`
+- **Final Material:** `[5] material`
+- **Final Quantity:** `[5] quantity_tons`
+- **Final Driver, Final Broker, Final Rate, Final Total, Reviewer Notes, Approved At:** blank
+
+### [16] Ticket update
+
+- **Record ID:** `[12] Airtable Record ID`
+- **Ticket Status:** `Needs Review`
+
+### Validation completed
+
+- single-record Parser Outputs test passed
+- Validation Queue link test passed
+- duplicate gate confirmed
+- 5-bundle batch passed
+- final 4-bundle remaining backlog run passed
+- Tickets correctly updated to `Needs Review`
+- no duplicate Parser Outputs created
+
+**Overall status:** Scenario 03 is complete and the production backlog run is validated. Scenario 05 remains in migration validation; scheduling stays disabled until that path is verified module by module.
