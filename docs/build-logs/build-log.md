@@ -1,5 +1,13 @@
 # Project Diane Build Log
 
+## 2026-07-20: Diane Ticket Review deployment verification
+
+Cleaned malformed stray loader fragments that appeared after the closing `</html>` tag in `Index.html`. The cleanup retained one valid `reloadBatches()` implementation with one Airtable branch and one Google Sheets branch, along with the existing handlers and read-only guards.
+
+Created a new deployment after saving and inspecting the source. Live browser verification confirmed that Airtable batches render and the ticket preview works.
+
+The replacement-scan upload still errors because Airtable records have `rowNumber: null` while the existing write path requires a Google Sheets row. No Airtable write behavior was connected in this checkpoint.
+
 ## 2026-07-14: Recovering the Document AI bridge and creating the Airtable extractor
 
 This work continued the Diane 2.0 migration from the Google Sheets OCR queue to Airtable. The immediate goal was to replace the missing Scenario 06 Document AI bridge without changing the working Diane review app or the existing stamping service.
