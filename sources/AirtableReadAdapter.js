@@ -74,6 +74,12 @@ function airtableText_(value) {
   return value == null ? '' : String(value);
 }
 
+function airtableTruthy_(value) {
+  if (value === true || value === 1) return true;
+  const text = norm_(airtableText_(value)).toLowerCase();
+  return ['true', 'yes', '1', 'on'].indexOf(text) !== -1;
+}
+
 function mapAirtableValidation_(record, ticketById) {
   const linkedTickets = airtableLinkIds_(airtableField_(record, 'Ticket'));
   const ticket = linkedTickets.length ? ticketById[linkedTickets[0]] : null;
@@ -97,9 +103,9 @@ function mapAirtableValidation_(record, ticketById) {
     sourceFileUrl: ticket ? airtableField_(ticket, 'Source File URL') || '' : '',
     sourceFileName: '',
     reviewStatus: airtableText_(airtableField_(record, 'Review Status')),
-    readyForClean: airtableField_(record, 'Processed to Tickets') ? 'Yes' : 'No',
+    readyForClean: airtableTruthy_(airtableField_(record, 'Processed to Tickets')) ? 'Yes' : 'No',
     imported: '',
-    testRow: airtableField_(record, 'Do Not Bill') ? 'Yes' : 'No',
+    testRow: airtableTruthy_(airtableField_(record, 'Do Not Bill')) ? 'Yes' : 'No',
     dataScope: '',
     runLabel: '',
     viewedInReviewApp: '',
@@ -183,9 +189,9 @@ function getPendingReviewBatchesFromAirtable(options) {
   const validationById = {};
   validationRecords.forEach(function(record) {
     const row = mapAirtableValidation_(record, ticketById);
-    const status = norm_(row.reviewStatus).toLowerCase();
-    const processed = !!airtableField_(record, 'Processed to Tickets');
-    const doNotBill = !!airtableField_(record, 'Do Not Bill');
+    const status = norm_(row.reviewStatus).replace(/\s+/g, ' ').toLowerCase();
+    const processed = airtableTruthy_(airtableField_(record, 'Processed to Tickets'));
+    const doNotBill = airtableTruthy_(airtableField_(record, 'Do Not Bill'));
     if (!includePrevious && (status !== 'pending review' || processed || doNotBill)) return;
     if (includePrevious && !row.validationId) return;
     validationById[record.id] = row;
