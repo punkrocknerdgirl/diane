@@ -312,3 +312,32 @@ The selected Airtable ticket identifier was already available as `CURRENT_AIRTAB
 - Version 61 deployed successfully.
 - The deployed app loaded `TEST_APPLY_BATCH_FIELDS_20260715` with one review group.
 - End-to-end file upload and Airtable record readback could not be completed through the nested cross-origin Apps Script iframe in this browser session; no success is claimed for that step.
+
+
+## 2026-07-20: Replacement Scan Routing Diagnostics and Airtable Branch Fix
+
+### Verified diagnosis
+
+The deployed client payload includes:
+
+- `source: REVIEW_QUEUE_SOURCE`
+- `rowNumber: CURRENT_ROW_NUMBER`
+- `validationRecordId: CURRENT_AIRTABLE_VALIDATION_RECORD_ID`
+
+The server previously selected the Airtable replacement handler only when `source === 'AIRTABLE_TEST'`. Any request that lost or changed that source value fell through to the Google Sheets handler, which then rejected the missing row number as `Invalid row number: undefined`.
+
+### Fix
+
+Updated `replaceTicketScan(payload)` to select the Airtable handler when either:
+
+- `source === 'AIRTABLE_TEST'`, or
+- `validationRecordId` is present.
+
+The Google Sheets path remains the fallback when neither Airtable signal is present. Temporary logs record `source`, `rowNumber`, `validationRecordId`, and the selected handler.
+
+### Deployment and browser verification
+
+- Apps Script Version 62 deployed successfully on 2026-07-20.
+- The Version 62 web app loaded `TEST_APPLY_BATCH_FIELDS_20260715` and its one Airtable test ticket.
+- The ticket detail page loaded the replacement-scan controls.
+- The browser session exposed the file input but did not expose its native file chooser, so an end-to-end replacement upload and Airtable readback were not completed. No upload success is claimed.
