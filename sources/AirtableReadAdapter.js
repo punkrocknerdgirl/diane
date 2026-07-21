@@ -273,6 +273,31 @@ function testGetPendingReviewBatchesFromAirtable() {
   const result = getPendingReviewBatchesFromAirtable({
     includePrevious: false
   });
-
-  console.log(JSON.stringify(result, null, 2));
+  const keyCounts = {};
+  (result || []).forEach(function(group) {
+    const key = norm_(group.batchKey);
+    keyCounts[key] = (keyCounts[key] || 0) + 1;
+  });
+  const duplicateBatchKeys = Object.keys(keyCounts).filter(function(key) {
+    return keyCounts[key] > 1;
+  });
+  const summary = {
+    totalGroups: (result || []).length,
+    savedBatchCount: (result || []).filter(function(group) {
+      return group.batchHasSavedRecord === true;
+    }).length,
+    unbatchedGroupCount: (result || []).filter(function(group) {
+      return norm_(group.batchKey).indexOf('UNBATCHED_') === 0;
+    }).length,
+    totalTicketCount: (result || []).reduce(function(total, group) {
+      return total + Number(group.ticketCount || 0);
+    }, 0),
+    duplicateBatchKeys: duplicateBatchKeys.length,
+    groupsMissingSourceFileUrl: (result || []).filter(function(group) {
+      return (group.rows || []).some(function(row) {
+        return !norm_(row.sourceFileUrl);
+      });
+    }).length
+  };
+  console.log(JSON.stringify(summary));
 }
