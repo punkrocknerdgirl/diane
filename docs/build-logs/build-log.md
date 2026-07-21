@@ -275,3 +275,40 @@ Build the Airtable interface **Diane Ticket Review** with this behavior:
 - The future downstream automation replaces old Scenario 09 VALIDATION → TICKETS_CLEAN.
 
 **Overall status:** Scenario 03 remains complete. The Airtable human review layer is built and tested; the next build item is the Diane Ticket Review interface, followed by batch approval and downstream approved Validation Queue → Tickets processing.
+
+
+## 2026-07-20: Replacement Scan Upload Row Identifier Fix
+
+### Issue found
+
+The Diane Ticket Review web app showed:
+
+`Replacement upload failed: Error: Invalid row number: undefined`
+
+### Root cause
+
+The replacement upload handler `replaceCurrentTicketScan()` always sent `rowNumber: CURRENT_ROW_NUMBER`. Airtable test tickets do not have a Google Sheets row number, so `CURRENT_ROW_NUMBER` was undefined. The server therefore fell through to the legacy sheet handler instead of using the Airtable replacement path.
+
+The selected Airtable ticket identifier was already available as `CURRENT_AIRTABLE_VALIDATION_RECORD_ID`, but it was not included in the upload payload.
+
+### Files/functions changed
+
+- Apps Script `Index.html`
+- `replaceCurrentTicketScan()`
+- Added `source: REVIEW_QUEUE_SOURCE` and `validationRecordId: CURRENT_AIRTABLE_VALIDATION_RECORD_ID` to the upload payload.
+- The existing sheet upload path remains unchanged.
+- `Code.gs`, `doGet()`, the Airtable adapter, and the current test-data path were not changed.
+
+### Deployment
+
+- Apps Script Version 61
+- Description: `Fix replacement scan Airtable row identifier`
+- Deployed web app: Version 61
+
+### Verification result
+
+- Saved source re-read from Apps Script editor and confirmed the new source and Airtable record ID fields are present.
+- `Code.gs` was re-read and confirmed to remain valid Apps Script source.
+- Version 61 deployed successfully.
+- The deployed app loaded `TEST_APPLY_BATCH_FIELDS_20260715` with one review group.
+- End-to-end file upload and Airtable record readback could not be completed through the nested cross-origin Apps Script iframe in this browser session; no success is claimed for that step.
