@@ -235,3 +235,17 @@ Version 71 added a read-only triage filter and overview OCR summary:
 Verified after refresh: ticket `402574` dated `2026-07-10` was absent, while ticket `403598` remained visible with `Date: 07/14/2026` in the overview OCR Hints column.
 
 Existing Airtable batch controls remain read-only/unavailable because they require Google Sheet row numbers. No Airtable batch assignment was added in this deployment.
+
+## 2026-07-23: Browser-only OCR prefill verification
+
+Version 72 added browser-only OCR prefill for empty ticket-detail fields. The precedence is saved/form value first, existing overview row value second, OCR candidate third, and blank otherwise. Prefill does not write until Save as Draft is clicked.
+
+Verified with ticket `403598`:
+
+- Before prefill: Ticket Date blank; Ticket Number `403598`; Quantity `25.27`; Driver and Rate blank; Line Total `0`.
+- OCR candidates supplied: Ticket Date `07/14/2026`; Ticket Number `403598`; Quantity `25.27`; Driver and Rate blank; Total `0`.
+- Existing Quantity remained `25.27`, proving the existing value won over OCR.
+- Save as Draft succeeded; after refresh and reopen, Ticket Date persisted as `2026-07-14`, Quantity as `25.27`, and Line Total as `0`.
+- Ticket `402574` was not opened or modified.
+
+The requested complete live-source sync was not committed because the local `clasp` session could not authenticate to the Apps Script project. No source baseline is claimed in GitHub.
