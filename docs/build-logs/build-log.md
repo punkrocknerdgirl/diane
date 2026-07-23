@@ -185,3 +185,16 @@ Verified source and deployment work for the narrow manual driver-pay workflow:
 - `AirtableReadAdapter.gs` was restored after the editor surfaced it as syntactically corrupted; no adapter logic was changed.
 
 Live save-and-refresh persistence was not verified because the browser session would not navigate to the new deployment URL. No claim is made about persisted live values until that test is completed.
+
+## 2026-07-23: Airtable write-permission diagnosis
+
+Version 64 loaded the Airtable batch and ticket successfully, but Save as Draft returned Airtable HTTP 403 `INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND`.
+
+Verified from the deployed project source and Script Properties:
+
+- Base ID: `appMWvtLU0hMBqjLC` (Diane 2.0)
+- Validation Queue table ID: `tblbiwkOS9LDi5yaV`
+- Write endpoint: `https://api.airtable.com/v0/appMWvtLU0hMBqjLC/tblbiwkOS9LDi5yaV/{record ID}`
+- Write helper and read adapter both use Script Property `AIRTABLE_TOKEN` and the same base/API configuration.
+
+The endpoint and record-target architecture are correct. The configured token is accepted for reads but is not authorized to PATCH the Diane 2.0 Validation Queue model. No source change or deployment was made; the remaining fix is to replace or update `AIRTABLE_TOKEN` with a token that has record-write access to this base.
