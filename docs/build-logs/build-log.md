@@ -198,3 +198,14 @@ Verified from the deployed project source and Script Properties:
 - Write helper and read adapter both use Script Property `AIRTABLE_TOKEN` and the same base/API configuration.
 
 The endpoint and record-target architecture are correct. The configured token is accepted for reads but is not authorized to PATCH the Diane 2.0 Validation Queue model. No source change or deployment was made; the remaining fix is to replace or update `AIRTABLE_TOKEN` with a token that has record-write access to this base.
+
+## 2026-07-23: Airtable numeric save verification
+
+Version 65 deployed a focused fix in `saveAirtableTicketFields()` so `Final Quantity`, `Final Rate`, and `Final Total` are sent as numeric JSON values. Blank numeric fields remain omitted, and invalid numeric text raises an error instead of becoming zero.
+
+Live verification completed on ticket `402574` in the Airtable Validation Queue:
+
+- Save as Draft succeeded.
+- The app was refreshed.
+- The same ticket was reopened.
+- Quantity persisted as `24.06`.
