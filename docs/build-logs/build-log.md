@@ -174,3 +174,14 @@ Both invoices were reviewed, cleaned up, and sent to the broker.
 The important design decision: **Diane stays the engine room. Final invoices should be separate files.** That keeps the automation workbook clean while still producing broker-ready documents that can be attached to QBO invoices and emailed for payment.
 
 Next step: turn the final invoice builder into a repeatable flow that reads from `INVOICE_LINES`, splits by broker/driver, creates standalone invoice files, exports PDFs, and queues the broker delivery packet.
+
+## 2026-07-23: Manual Airtable driver-pay save path
+
+Verified source and deployment work for the narrow manual driver-pay workflow:
+
+- Apps Script Version 64 deployed successfully.
+- `Index.html` now passes the active Airtable Validation Queue record ID with Save Ticket and routes Airtable saves to the Airtable handler while preserving the Sheets save path.
+- `Code.gs` now updates the existing Validation Queue record by Airtable record ID, writing the confirmed ticket date, ticket number, driver, quantity, rate, and line total fields.
+- `AirtableReadAdapter.gs` was restored after the editor surfaced it as syntactically corrupted; no adapter logic was changed.
+
+Live save-and-refresh persistence was not verified because the browser session would not navigate to the new deployment URL. No claim is made about persisted live values until that test is completed.
