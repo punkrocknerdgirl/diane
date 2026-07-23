@@ -209,3 +209,16 @@ Live verification completed on ticket `402574` in the Airtable Validation Queue:
 - The app was refreshed.
 - The same ticket was reopened.
 - Quantity persisted as `24.06`.
+
+## 2026-07-23: Read-only OCR Hints
+
+Version 70 added a read-only OCR Hints panel to the ticket review form. `AirtableReadAdapter.gs` now loads linked Parser Outputs and OCR Outputs, exposes raw OCR text and extracted values, and provides display-only candidates with Validation Queue Final → Parser Output → OCR precedence. A display-only date parser also recognizes readable dates in Raw OCR Text when the extracted date field is blank.
+
+Verified after refresh in Version 70:
+
+- Ticket `403598`: OCR date hint `07/14/2026`
+- Ticket `1980051253`: OCR date hint `07/15/2026`
+- Ticket `811010648`: OCR date hint `07/17/2026`
+- Ticket `0825277`: OCR date hint `07/18/2026`
+
+No OCR values were written to Airtable, and save/approve, replacement scan, Sheets behavior, and downstream processing were not changed.
