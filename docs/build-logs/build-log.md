@@ -341,3 +341,25 @@ The Google Sheets path remains the fallback when neither Airtable signal is pres
 - The Version 62 web app loaded `TEST_APPLY_BATCH_FIELDS_20260715` and its one Airtable test ticket.
 - The ticket detail page loaded the replacement-scan controls.
 - The browser session exposed the file input but did not expose its native file chooser, so an end-to-end replacement upload and Airtable readback were not completed. No upload success is claimed.
+
+
+## 2026-07-23: Airtable Schema and Apps Script Source-Control Handoff — IN PROGRESS
+
+Airtable schema work added the following fields:
+
+- **Validation Queue: Batch Assignment Source:** Auto, Manual, Unassigned
+- **Validation Queue: Batch Lock**
+- **Aliases: Broker**, linked to **Brokers**
+- **Aliases: Maps To Truck**, linked to **Trucks**
+- **Trucks: Default Driver**, linked to **Drivers**
+
+Existing truck defaults were confirmed:
+
+- **Wright 01 / W01 → Clifton, David / DC**
+- **Wright 02 / W02 → Shelton, David / DS**
+
+The old **Default Driver Code** text field remains temporarily for compatibility. No new broker or truck information is being added manually; those values will be added later through the planned setup form. Current known aliases will be used for testing, while unknown broker or truck values must remain reviewable rather than being forced into an incorrect match.
+
+Work began to wire truck selection to a default-driver suggestion in the review page. Before any further code change, the live Apps Script source must be inventoried and backed up because it is not stored in the existing public GitHub repository.
+
+No Apps Script code change or deployment was made during this step. The next controlled step is to capture an unchanged Version 70 baseline, scan it for credentials and other sensitive values without exposing them, and place only a secret-safe copy in a private source repository. Google Apps Script remains the live deployment environment; the source-control mirror must not deploy automatically until the workflow is tested.
