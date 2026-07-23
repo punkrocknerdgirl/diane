@@ -222,3 +222,16 @@ Verified after refresh in Version 70:
 - Ticket `0825277`: OCR date hint `07/18/2026`
 
 No OCR values were written to Airtable, and save/approve, replacement scan, Sheets behavior, and downstream processing were not changed.
+
+## 2026-07-23: Overview triage filter and OCR summary
+
+Version 71 added a read-only triage filter and overview OCR summary:
+
+- Records with a known candidate date before `2026-07-13` are excluded from the review queue.
+- Records with a missing date remain visible for review.
+- The overview now includes an `OCR Hints` column with display-only date, driver, truck, material, quantity, rate, and total candidates.
+- Empty filtered batches are hidden.
+
+Verified after refresh: ticket `402574` dated `2026-07-10` was absent, while ticket `403598` remained visible with `Date: 07/14/2026` in the overview OCR Hints column.
+
+Existing Airtable batch controls remain read-only/unavailable because they require Google Sheet row numbers. No Airtable batch assignment was added in this deployment.
