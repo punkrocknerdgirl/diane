@@ -163,6 +163,69 @@ The parser produced several imperfect truck strings and one malformed ticket num
 
 No further Scenario 03 repair is required before continuing.
 
+## Scenario 04: Build Review Batches
+
+**Status: IN PROGRESS**
+
+Current scenario state:
+
+- Scenario 04 currently contains one Airtable Search Records module.
+- The module searches `Validation Queue` for records where `Review Status = Pending Review` and `Review Batches` is empty.
+- Records are sorted by Validation ID ascending.
+- The production search limit is 75.
+- A Run once test returned 57 bundles, matching the 57 clean-restart Validation Queue records.
+- No modules currently create Review Batch records or link Validation Queue records to them.
+
+Review-page behavior confirmed:
+
+- The Apps Script review page still supports saved Review Batch records and shared batch fields.
+- When a Validation Queue record has no linked Review Batch, the Airtable adapter generates a temporary display-only key in the form `UNBATCHED_<Validation ID>`.
+- This fallback explains why earlier review-page testing could display tickets without saved Review Batch records.
+- The fallback does not create Review Batch records or links in Airtable.
+
+Documentation and archive review:
+
+- No completed Scenario 04 implementation or production Review Batch Key formula was found in the GitHub documentation.
+- The archived Airtable base contained only one manual automation-test Review Batch, which did not establish a production grouping pattern.
+- The existing Broker records contain older broker-specific grouping flags, but those rules are being superseded by the simplified truck-based invoice and review workflow below.
+
+Approved batching direction:
+
+- Use one Review Batch per Broker + Truck for all brokers.
+- Stable Review Batch Key format: `<Broker Code>_<Truck Code>`.
+- Examples: `TNB_W01`, `ST_W02`, `NR_W03`.
+- Driver is not part of batch identity.
+- Customer / Job, PO Number, Work Order / Order, Origin, Destination, Driver, and Rate remain reviewable values but do not split the Review Batch.
+- This aligns Review Batches with the intended downstream rule of one invoice per truck.
+- Brokers that accept combined submissions can still have truck-specific PDFs or invoices combined manually before sending.
+
+Blank or unknown truck guardrail:
+
+- Records without a confirmed truck must not be grouped together.
+- Use a validation-specific safe key such as `<Broker Code>_UNASSIGNED_<Validation ID>`.
+- This prevents unrelated unknown-truck records from being combined into one batch.
+
+Manual assignment guardrails:
+
+- Scenario 04 must respect `Batch Lock`.
+- `Batch Assignment Source = Manual` must override automatic batching.
+- `Batch Assignment Source = Unassigned` must override automatic batching.
+- Automatic batching must not move, recreate, or overwrite manually controlled assignments.
+
+Required Scenario 04 behavior:
+
+1. Start from the existing eligible Validation Queue search.
+2. Resolve the linked Ticket and the normalized Broker and Truck values needed for batching.
+3. Build the stable Review Batch Key.
+4. Search Review Batches for that exact key.
+5. Create the Review Batch only when no matching record exists.
+6. Link the Validation Queue record to the matching Review Batch.
+7. Set `Batch Assignment Source` to `Automatic` for records assigned by the scenario.
+8. Preserve locked, manual, and intentionally unassigned records.
+9. Allow safe reruns without duplicate Review Batch records or duplicate assignments.
+
+No Scenario 04 modules beyond the initial search have been added yet. No Airtable records, schema, Apps Script code, or deployment were changed during this investigation.
+
 ## Next step
 
-Open and inspect Scenario 04. Confirm its Airtable source criteria, normalization and alias behavior, truck-first logic, Default Driver handling, duplicate prevention, Ticket and Validation Queue updates, Review Batch behavior, and any status transitions before running it.
+Design the exact Scenario 04 Make module sequence and field mappings for the approved Broker + Truck batch identity. Show the complete proposed module sequence before modifying the live Make scenario. Then build, run, and verify Scenario 04 against all 57 Validation Queue records before moving to any later scenario.
