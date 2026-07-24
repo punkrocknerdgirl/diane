@@ -88,6 +88,38 @@ Clean-run result:
 
 No Scenario 01 repair is required before continuing.
 
+## Scenario 02: OCR Workflow
+
+**Status: PASSED**
+
+Pre-run inspection:
+
+- The Airtable search module targets Tickets with a Source File ID, Ticket Status `Intake`, and no linked OCR Run.
+- The production search limit remains 75.
+- The Google Drive download module maps the Ticket `Source File ID` from the Airtable search result.
+- The existing `Has Source File ID` filter remains as a harmless second guardrail.
+- Image files and PDF/TIFF files route through separate Google Cloud Vision OCR branches.
+- Both branches create an `OCR Runs` record and an `OCR Outputs` record.
+- OCR Run records link to the correct Ticket.
+- OCR Output records link to the correct OCR Run and Ticket.
+- No Google Sheets modules or stale Google Sheets mappings were found.
+- Scenario 02 does not update Ticket Status; Tickets correctly remain `Intake` until a later scenario performs the next workflow transition.
+
+Clean-run result:
+
+- Make returned 57 bundles.
+- Airtable contains 57 OCR Run records.
+- All 57 OCR Runs have provider `Google Cloud Vision`.
+- All 57 OCR Runs have status `Complete`.
+- All 57 OCR Runs have a completion timestamp, processing file URL, linked Ticket, and linked OCR Output.
+- No OCR Run error messages were populated.
+- Airtable contains 57 OCR Output records.
+- All 57 OCR Outputs contain raw OCR text.
+- All 57 OCR Outputs link to one OCR Run and the correct Ticket.
+- No duplicate OCR Run IDs or OCR Output IDs were observed.
+
+No Scenario 02 repair is required before continuing.
+
 ## Next step
 
-Run and validate Scenario 02 OCR against the 57 Intake tickets, then append the result to this log before moving forward.
+Open and inspect Scenario 03 before running it. Confirm its Airtable source filter, parser mappings, linked-record mappings, duplicate prevention, Ticket status behavior, and any Validation Queue writes. Do not run Scenario 03 until the full configuration has been inspected.
