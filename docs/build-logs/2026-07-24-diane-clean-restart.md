@@ -229,30 +229,117 @@ Example parser clue observed during the controlled test:
 
 This value is a broker-specific ticket clue. It is not itself the canonical Diane Truck Code.
 
-### Corrected architecture decision
+### Alias-table inspection
 
-Scenario 04 must resolve the truck before it can build the Review Batch Key:
+The live `Aliases` table contains 17 records and includes the relational fields `Broker` and `Maps To Truck`.
 
-1. Read the broker-specific truck clue produced from the ticket.
-2. Match that clue against the Airtable `Aliases` configuration.
-3. Resolve the Alias to the real linked Truck record.
-4. Read the canonical Truck Code from the Trucks table.
-5. Resolve the canonical Broker Code.
-6. Build `<Broker Code>_<Truck Code>`.
-7. Create or reuse the Review Batch and link the Validation Queue record.
-8. Use the validation-specific `UNASSIGNED` key when no safe alias match exists.
+However:
 
-Each broker may print truck information differently and in different ticket locations. The ticket-written clue is therefore required input to truck resolution, not a stable batch identifier by itself.
+- All 17 Alias records currently have blank `Broker` links.
+- All 17 Alias records currently have blank `Maps To Truck` links.
+- Existing truck aliases rely on legacy text fields `Maps To Code` and `Maps To Name`.
+- No normalized Alias comparison field currently exists.
+- `Alias Status = Approved Alias` is the available approval guardrail.
+
+Existing approved truck aliases include known values for Wright 01 and Wright 02, but the tested parser clue `2452012-SR8179-02, GP WRIGHT` is not represented.
+
+Conclusion:
+
+- Alias resolution remains a valid fallback path after its configuration records are linked and expanded.
+- The current Alias data is not ready to serve as Scenario 04's primary automatic resolver.
+- Unknown values must remain unassigned rather than being guessed.
+
+## Dispatch-first operating layer
+
+A new upstream operating model was approved:
+
+```text
+Dispatch = what was supposed to happen
+Ticket = what actually happened
+Review = reconcile the two
+```
+
+Manual Dispatch entry will occur before Motive ticket import when practical. Ticket ingestion remains independent so missing or incomplete Dispatch data cannot block Scenarios 01 through 03.
+
+Dispatch matching will occur after parsing and before or during Review Batch creation.
+
+Primary matching direction:
+
+1. Ticket date falls on or after the Dispatch Start Date.
+2. A blank Dispatch End Date means the job is ongoing.
+3. Destination is the strongest expected ticket clue.
+4. Customer / Job is supporting evidence.
+5. Origin, Rate, Truck, Driver, PO, and Work Order can distinguish overlapping candidates.
+6. The Dispatch supplies the canonical Broker when the broker is absent from the ticket.
+7. Automatic assignment is allowed only when exactly one safe candidate remains.
+8. Ambiguous or missing matches remain unassigned for review.
+
+### Airtable schema added
+
+Created a new `Dispatches` table containing:
+
+- Dispatch ID
+- Dispatch Status
+- Start Date
+- End Date
+- Broker
+- Customer
+- Job
+- Destination
+- Origin
+- PO Number
+- Work Order / Order
+- Rate
+- Truck
+- Driver
+- Truck Notes
+- Dispatch Notes
+- Dispatch Lock
+- Tickets
+- Validation Queue
+- Review Batches
+- Import Run
+- Normalized Destination
+- Normalized Customer
+- Normalized Job
+
+Added to `Validation Queue`:
+
+- Dispatches
+- Dispatch Assignment Source
+- Dispatch Lock
+- Dispatch Match Notes
+
+Airtable automatically created reciprocal Dispatch links in Tickets, Review Batches, Brokers, Trucks, Drivers, and Import Runs.
+
+No Make scenario or Apps Script code was changed as part of the schema work.
+
+### Initial live Dispatch records
+
+Six active Dispatch records were created for jobs beginning July 13, 2026. End Date is blank for ongoing work.
+
+- `DSP_20260713_001`: Statewide Materials; Ash Grove Cement Company / Ash Grove; destination Ash Grove Cement Co - Midlothian, TX; origin Cemex - Blum, TX; rate $12.00; Wright 02; Shelton, David.
+- `DSP_20260713_002`: Statewide Materials; Mario Sinacola; destination Mario Sinacola; origin Heidelberg Materials; rate $13.00; Wright 02; Shelton, David.
+- `DSP_20260713_003`: Statewide Materials; Tiseo Paving; destination Tiseo Paving; origin Heidelberg Materials; rate $14.00; Wright 02; Shelton, David.
+- `DSP_20260713_004`: Statewide Materials; Ash Grove Cement Company / Ash Grove; destination Ash Grove Cement Co; origin Nemo Aggregates; rate $12.00; Wright 01; Clifton, David.
+- `DSP_20260713_005`: Hillsboro Sand & Gravel; Michel's Data Hubbard / Michel's Data; destination Hubbard, TX; origin Canfield Materials; PO Michel's Data; rate $20.00; Wright 02; Shelton, David.
+- `DSP_20260713_006`: Hillsboro Sand & Gravel; Michel's Data Hubbard / Michel's Data; destination Hubbard, TX; origin Texas Crushed Stone; PO Michel's Data; rate $40.00; Wright 02; Shelton, David.
+
+The two Hubbard Dispatches intentionally share destination, broker, dates, truck, and driver. They must be distinguished by origin, rate, or manual review. Destination alone is not sufficient when multiple active Dispatch candidates remain.
+
+Truck and Driver values on Dispatches are defaults and supporting clues. Reviewers may correct individual tickets without changing the Dispatch record or the Truck's Default Driver.
 
 ### Safety state
 
 - No Review Batch records were created.
-- No Validation Queue records were linked or updated.
-- No Airtable schema was changed.
+- No Validation Queue records were assigned or updated.
+- No Ticket records were assigned or updated.
 - No Apps Script code or deployment was changed.
 - No Google Sheets scenario was touched.
-- The experimental Scenario 04 modules only read records and exposed the truck-resolution dependency.
+- Scenario 04 remains incomplete and has not been run through its write path.
 
 ## Next step
 
-Inspect the Airtable `Aliases` table and document the exact fields that connect broker-specific ticket text to canonical Broker and Truck records. Then redesign only the truck-resolution portion of Scenario 04 before continuing the batch-creation path.
+Inspect the 57 Parser Output / Validation Queue records for parsed Destination, Customer / Job, Origin, Rate, and truck clues. Determine which existing records can be matched safely to the six active Dispatch records and document ambiguities before changing Scenario 04.
+
+Then show the exact proposed Scenario 04 Dispatch-resolution and Review Batch module sequence before modifying the live Make scenario. Do not create Review Batches or update Validation Queue records until that sequence is approved.
