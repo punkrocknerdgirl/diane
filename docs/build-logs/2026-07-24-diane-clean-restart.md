@@ -169,12 +169,15 @@ No further Scenario 03 repair is required before continuing.
 
 Current scenario state:
 
-- Scenario 04 currently contains one Airtable Search Records module.
-- The module searches `Validation Queue` for records where `Review Status = Pending Review` and `Review Batches` is empty.
-- Records are sorted by Validation ID ascending.
-- The production search limit is 75.
-- A Run once test returned 57 bundles, matching the 57 clean-restart Validation Queue records.
-- No modules currently create Review Batch records or link Validation Queue records to them.
+- `[2] Airtable Search Records` searches `Validation Queue` for `Pending Review` records with no linked Review Batch.
+- Records are sorted by Validation ID ascending with the production limit of 75.
+- Run-once tests consistently return all 57 clean-restart Validation Queue records.
+- `[3] Airtable Get a Record` successfully resolves each linked Ticket.
+- `[5] Tools Set multiple variables` currently captures Validation ID and experimental broker/truck inputs.
+- `[7] Airtable Get a Record` successfully resolves the linked Parser Output.
+- `[8] Airtable Get a Record` was added to test resolving a linked Truck record.
+- A `Has linked Truck` filter was added before `[8]` so blank Truck links do not cause a missing-record-ID error.
+- Scenario 04 still does not create Review Batch records or update Airtable links.
 
 Review-page behavior confirmed:
 
@@ -182,12 +185,6 @@ Review-page behavior confirmed:
 - When a Validation Queue record has no linked Review Batch, the Airtable adapter generates a temporary display-only key in the form `UNBATCHED_<Validation ID>`.
 - This fallback explains why earlier review-page testing could display tickets without saved Review Batch records.
 - The fallback does not create Review Batch records or links in Airtable.
-
-Documentation and archive review:
-
-- No completed Scenario 04 implementation or production Review Batch Key formula was found in the GitHub documentation.
-- The archived Airtable base contained only one manual automation-test Review Batch, which did not establish a production grouping pattern.
-- The existing Broker records contain older broker-specific grouping flags, but those rules are being superseded by the simplified truck-based invoice and review workflow below.
 
 Approved batching direction:
 
@@ -197,7 +194,6 @@ Approved batching direction:
 - Driver is not part of batch identity.
 - Customer / Job, PO Number, Work Order / Order, Origin, Destination, Driver, and Rate remain reviewable values but do not split the Review Batch.
 - This aligns Review Batches with the intended downstream rule of one invoice per truck.
-- Brokers that accept combined submissions can still have truck-specific PDFs or invoices combined manually before sending.
 
 Blank or unknown truck guardrail:
 
@@ -212,20 +208,51 @@ Manual assignment guardrails:
 - `Batch Assignment Source = Unassigned` must override automatic batching.
 - Automatic batching must not move, recreate, or overwrite manually controlled assignments.
 
-Required Scenario 04 behavior:
+### Truck-resolution investigation
 
-1. Start from the existing eligible Validation Queue search.
-2. Resolve the linked Ticket and the normalized Broker and Truck values needed for batching.
-3. Build the stable Review Batch Key.
-4. Search Review Batches for that exact key.
-5. Create the Review Batch only when no matching record exists.
-6. Link the Validation Queue record to the matching Review Batch.
-7. Set `Batch Assignment Source` to `Automatic` for records assigned by the scenario.
-8. Preserve locked, manual, and intentionally unassigned records.
-9. Allow safe reruns without duplicate Review Batch records or duplicate assignments.
+The initial assumption that Scenario 04 could read a ready-to-use Broker Code and Truck Code from Ticket or Validation Queue records was disproved during testing.
 
-No Scenario 04 modules beyond the initial search have been added yet. No Airtable records, schema, Apps Script code, or deployment were changed during this investigation.
+Observed results:
+
+- Ticket `Broker Code` was empty in the tested output.
+- Ticket `Truck Code` was empty in the tested output.
+- Validation Queue `Final Broker` was empty in the tested output.
+- Validation Queue `Final Truck` contained the parser's full ticket-written truck text, not the normalized Diane Truck Code.
+- Parser Output `Parsed Truck` contained the same ticket-written truck text, not the normalized Diane Truck Code.
+- Some Ticket records do not yet have a linked Truck record, so Scenario 04 cannot begin by reading the Trucks table.
+
+Example parser clue observed during the controlled test:
+
+```text
+2452012-SR8179-02, GP WRIGHT
+```
+
+This value is a broker-specific ticket clue. It is not itself the canonical Diane Truck Code.
+
+### Corrected architecture decision
+
+Scenario 04 must resolve the truck before it can build the Review Batch Key:
+
+1. Read the broker-specific truck clue produced from the ticket.
+2. Match that clue against the Airtable `Aliases` configuration.
+3. Resolve the Alias to the real linked Truck record.
+4. Read the canonical Truck Code from the Trucks table.
+5. Resolve the canonical Broker Code.
+6. Build `<Broker Code>_<Truck Code>`.
+7. Create or reuse the Review Batch and link the Validation Queue record.
+8. Use the validation-specific `UNASSIGNED` key when no safe alias match exists.
+
+Each broker may print truck information differently and in different ticket locations. The ticket-written clue is therefore required input to truck resolution, not a stable batch identifier by itself.
+
+### Safety state
+
+- No Review Batch records were created.
+- No Validation Queue records were linked or updated.
+- No Airtable schema was changed.
+- No Apps Script code or deployment was changed.
+- No Google Sheets scenario was touched.
+- The experimental Scenario 04 modules only read records and exposed the truck-resolution dependency.
 
 ## Next step
 
-Design the exact Scenario 04 Make module sequence and field mappings for the approved Broker + Truck batch identity. Show the complete proposed module sequence before modifying the live Make scenario. Then build, run, and verify Scenario 04 against all 57 Validation Queue records before moving to any later scenario.
+Inspect the Airtable `Aliases` table and document the exact fields that connect broker-specific ticket text to canonical Broker and Truck records. Then redesign only the truck-resolution portion of Scenario 04 before continuing the batch-creation path.
