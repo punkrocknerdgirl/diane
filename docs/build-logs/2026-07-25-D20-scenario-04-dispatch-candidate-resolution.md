@@ -2,25 +2,25 @@
 
 ## Status
 
-**PASSED — THREE-RECORD CANDIDATE RESOLUTION PROVEN**
+**PASSED — THREE-RECORD CANDIDATE RESOLUTION, ORIGIN TIE-BREAK, AND ORIGIN SUGGESTION PROVEN**
 
 Scenario 04 remains read-only. No Review Batch records, Validation Queue assignments, Ticket updates, Dispatch links, Apps Script changes, deployments, scheduling changes, or Google Sheets changes were made during this work.
 
 ## Goal
 
-Replace the failed Make `candidateMatch` formula with a reliable first-pass Dispatch candidate resolver that can distinguish:
+Replace the failed native Make `candidateMatch` formula with a reliable Dispatch resolver that can:
 
-1. no candidate
-2. one candidate
-3. multiple candidates
+1. distinguish no candidate, one candidate, and multiple candidates
+2. use Origin only as a tie-break after first-pass candidate resolution
+3. return a practical OCR-based Origin suggestion for review without falsely resolving a Dispatch
 
-The resolver must use ticket OCR evidence against active Dispatch values for:
+The first-pass resolver uses ticket OCR evidence against active Dispatch values for:
 
 - Customer
 - Job
 - Destination
 
-Origin remains reserved for later tie-breaking. PO Number and Work Order are not primary clues because they are frequently blank. Rate is supporting data only.
+PO Number and Work Order are not primary clues because they are frequently blank. Rate is supporting data only.
 
 ## Starting safety state
 
@@ -57,9 +57,11 @@ The formula approach was abandoned in favor of a code-based resolver.
 -> [24] Make Code: Run code
 ```
 
+The lower Router [11] branch through Modules [8] and [5] was inspected but left unchanged. It is not part of the proven Dispatch resolver path.
+
 ## Module [20]: comparison bundle fields
 
-Module [20] continues to carry the Dispatch comparison package, including:
+Module [20] carries the Dispatch comparison package:
 
 - `validationRecordId`
 - `dispatchRecordId`
@@ -74,12 +76,9 @@ Module [20] continues to carry the Dispatch comparison package, including:
 - `dispatchBrokerRecordId`
 - `dispatchTruckRecordId`
 - `dispatchDriverRecordId`
-
-The following ticket-side field was added so it remains attached to the correct grouped record:
-
 - `normalizedOcrText` from `[13].normalizedOcrText`
 
-The earlier native Make `candidateMatch` field remains non-authoritative and is not used by the final resolver.
+The earlier native Make `candidateMatch` field is non-authoritative and is not used by the final resolver.
 
 ## Module [23]: Array aggregator correction
 
@@ -99,18 +98,12 @@ The grouping key remains:
 
 Target structure remains Custom.
 
-Aggregated fields include the full Dispatch package plus:
-
-- `normalizedOcrText`
-
 Verified result:
 
 - Module [23] produced 3 operations.
 - Each operation contained all 6 active Dispatch records for one Validation Queue record.
 
 ## Module [24]: Make Code resolver
-
-A Make Code `Run code` module was added after Module [23].
 
 Language:
 
@@ -136,17 +129,71 @@ The resolver:
 2. ignores blank clues
 3. ignores generic tokens such as `TX`, `THE`, `AND`, `OF`, `TO`, `AT`, `IN`, `CO`, `LLC`, `INC`, and `COMPANY`
 4. checks meaningful Customer, Job, and Destination tokens against OCR text
-5. returns `candidateMatch` as numeric `1` or `0` for every Dispatch comparison
+5. returns numeric `candidateMatch` values for every Dispatch comparison
 6. returns `candidateCount`
 7. returns `candidateStatus` as `none`, `one`, or `multiple`
-8. returns the surviving `candidateDispatches`
-9. returns all comparison records for inspection
+8. preserves surviving `candidateDispatches`
+9. preserves all `comparisons` for inspection
+10. applies Origin only after the first pass when multiple candidates survive
+11. returns an independent OCR Origin suggestion for review
 
-Origin is intentionally excluded from first-pass matching and will be used later as a tie-break for overlapping candidates.
+## Origin tie-break
 
-## Verified test results
+Origin does not create a candidate and cannot revive a Dispatch that failed the first pass.
 
-### No candidate
+Resolution rules:
+
+```text
+0 first-pass candidates
+-> resolutionStatus: none
+-> resolvedDispatch: empty
+-> tieBreakMethod: none
+
+1 first-pass candidate
+-> resolutionStatus: resolved
+-> resolvedDispatch: the single candidate
+-> tieBreakMethod: first_pass_single
+
+2+ first-pass candidates
+-> compare OCR only against the surviving candidates' origins
+-> exactly one origin match: resolved by origin
+-> zero or multiple origin matches: ambiguous
+```
+
+Additional output fields:
+
+- `resolutionStatus`
+- `resolvedDispatch`
+- `tieBreakMethod`
+- `originMatchCount`
+- `originMatchedDispatches`
+
+## OCR Origin suggestion
+
+A separate, minimal review suggestion was added without weakening Dispatch resolution.
+
+The code compares OCR against all active Dispatch origins. If exactly one active origin matches, it returns:
+
+- `suggestedOrigin`
+- `suggestedOriginDispatchRecordId`
+- `suggestedOriginMethod: ocr_origin`
+
+If no origin or multiple origins match, the suggestion remains blank and the method is `none`.
+
+This suggestion does not change:
+
+- `candidateCount`
+- `candidateStatus`
+- `resolutionStatus`
+- `resolvedDispatch`
+
+It is intended only to prefill a useful Origin value for Ernie's mandatory manual review.
+
+No broader generic field classifier, OCR preview packet, material suggestion system, or speculative scoring layer was added.
+
+## Verified three-record results
+
+### No candidate with useful Origin suggestion
 
 Ticket:
 
@@ -159,12 +206,17 @@ Result:
 ```text
 candidateCount: 0
 candidateStatus: none
-candidateDispatches: empty
+resolutionStatus: none
+resolvedDispatch: empty
+tieBreakMethod: none
+originMatchCount: 0
+suggestedOrigin: Canfield Materials
+suggestedOriginMethod: ocr_origin
 ```
 
-This matches the expected result.
+The OCR contains `CANFIELD MATERIALS`, but Customer, Job, and Destination do not establish a valid Dispatch candidate. The resolver correctly leaves the Dispatch unresolved while returning a useful review suggestion.
 
-### Multiple candidates
+### Multiple candidates resolved by Origin
 
 Ticket:
 
@@ -172,7 +224,7 @@ Ticket:
 0825278
 ```
 
-Result:
+First-pass result:
 
 ```text
 candidateCount: 2
@@ -181,21 +233,25 @@ candidateStatus: multiple
 
 Surviving Dispatches:
 
-- `DSP_20260713_005`
-- `DSP_20260713_006`
+- `DSP_20260713_005` — Canfield Materials
+- `DSP_20260713_006` — Texas Crushed Stone
 
-Both returned:
+Both remain preserved in `candidateDispatches` with `candidateMatch: 1`.
+
+Final result:
 
 ```text
-candidateMatch: 1
+resolutionStatus: resolved
+resolvedDispatch: DSP_20260713_006
+tieBreakMethod: origin
+originMatchCount: 1
+suggestedOrigin: Texas Crushed Stone
+suggestedOriginMethod: ocr_origin
 ```
 
-This matches the expected first-pass result. The later origin tie-break remains:
+The OCR contains `TEXAS CRUSHED STONE COMPANY`. The tie-break correctly selected `DSP_20260713_006` while preserving both first-pass candidates for inspection.
 
-- Canfield Materials -> `DSP_20260713_005`
-- Texas Crushed Stone -> `DSP_20260713_006`
-
-### One candidate
+### One candidate without invented Origin suggestion
 
 Ticket:
 
@@ -208,19 +264,15 @@ Result:
 ```text
 candidateCount: 1
 candidateStatus: one
+resolutionStatus: resolved
+resolvedDispatch: DSP_20260713_002
+tieBreakMethod: first_pass_single
+originMatchCount: 0
+suggestedOrigin: empty
+suggestedOriginMethod: none
 ```
 
-Surviving Dispatch:
-
-- `DSP_20260713_002`
-
-The surviving comparison returned:
-
-```text
-candidateMatch: 1
-```
-
-This matches the expected result.
+The OCR did not contain a unique recognizable active Dispatch origin. The resolver correctly did not invent an Origin suggestion merely because the Dispatch was resolved through the first pass.
 
 ## Operation count
 
@@ -232,6 +284,8 @@ For the three-record proof:
 - Module [24]: 3 code executions
 
 The code module executes once per ticket after aggregation, not once per Dispatch comparison.
+
+The Origin tie-break and Origin suggestion reuse the OCR and Dispatch data already present in Module [24]. They add no Airtable search, router, aggregator, or write operation.
 
 ## Final safety verification
 
@@ -246,28 +300,29 @@ The code module executes once per ticket after aggregation, not once per Dispatc
 - Scheduling remains off.
 - Module [22] remains disconnected.
 - Module [2] remains restricted to the three-record test scope.
+- Router [11] and Modules [8] and [5] remain unchanged.
 
 ## Current conclusion
 
-Scenario 04 first-pass Dispatch candidate resolution is proven for all three required cases:
+Scenario 04's read-only Dispatch resolver is proven for the current three-record scope:
 
 ```text
-0 candidates -> none
-1 candidate  -> one
-2 candidates -> multiple
+0 candidates -> unresolved, with a unique OCR Origin suggestion when available
+1 candidate  -> resolved by first_pass_single
+2 candidates -> resolved by Origin when exactly one surviving origin matches
 ```
 
-The Make Code resolver replaces the failed native Make formula approach.
+The resolver remains conservative about Dispatch assignment while providing the practical Origin prefill needed for a one-reviewer, 20-to-60-ticket-per-week workflow.
 
 ## Next step
 
-Continue Scenario 04 from the proven candidate-resolution output.
+Continue Scenario 04 from the proven resolver output.
 
-Before adding any Airtable write modules:
+Before adding Airtable writes or restoring the 57-record production scope:
 
-1. inspect and define the origin tie-break for `multiple` results
-2. decide the exact output fields required for one, multiple, and no-candidate routes
-3. preserve manual review for every ticket
-4. show the exact proposed module sequence before changing the live scenario
-5. keep the three-record test scope until routing behavior is proven
-6. do not restore the 57-record production scope yet
+1. define the exact downstream fields that will consume `resolvedDispatch` and `suggestedOrigin`
+2. inspect the intended Review Batch creation and Validation Queue update sequence
+3. show the exact proposed module sequence and mappings before changing the live scenario
+4. preserve manual review for every ticket
+5. keep scheduling off and Module [22] disconnected
+6. keep the three-record scope until downstream routing and mappings are proven
