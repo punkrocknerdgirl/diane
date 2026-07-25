@@ -15,8 +15,60 @@ const DIANE_AIRTABLE_TABLES = {
   validationQueue: 'tblbiwkOS9LDi5yaV',
   tickets: 'tbloTlWdo1f4hFKXh',
   parserOutputs: 'tblvgGjGiSJCNid36',
-  ocrOutputs: 'tblVXINiOoN7hPGpa'
+  ocrOutputs: 'tblVXINiOoN7hPGpa',
+  trucks: 'tbl34C0X7sRdpFsP5',
+  drivers: 'tblrAWk0omo16cx6x',
+  brokers: 'tblqyPewObvpgrHmY',
+  aliases: 'tblFdkclbZCaaI8Ly'
 };
+
+function buildTruckAliasMap_(truckRecords, driverRecords, brokerRecords, aliasRecords) {
+  const driversById = {};
+  const brokersById = {};
+  const trucksById = {};
+  const map = {};
+  (driverRecords || []).forEach(function(record) {
+    const fields = record.fields || {};
+    driversById[record.id] = {code: norm_(fields['Driver Code']), name: norm_(fields['Driver Name'])};
+  });
+  (brokerRecords || []).forEach(function(record) {
+    const fields = record.fields || {};
+    const brokerKeys = [normLookupKey_(fields['Broker Code']), normLookupKey_(fields['Broker Name'])].filter(Boolean);
+    if (brokerKeys.length) brokersById[record.id] = brokerKeys;
+  });
+  (truckRecords || []).forEach(function(record) {
+    const fields = record.fields || {};
+    const truckCode = norm_(fields['Truck Code']);
+    const truckKey = normLookupKey_(truckCode);
+    if (!truckKey) return;
+    const defaultDriverIds = airtableLinkIds_(fields['Default Driver']);
+    const defaultDriver = defaultDriverIds.length ? driversById[defaultDriverIds[0]] || {} : {};
+    trucksById[record.id] = {code: truckCode, driverCode: norm_(defaultDriver.code)};
+    const canonicalCandidates = map[truckKey] || [];
+    if (!canonicalCandidates.some(function(item) { return item.code + '|' + item.driverCode === truckCode + '|' + norm_(defaultDriver.code); })) canonicalCandidates.push({code: truckCode, driverCode: norm_(defaultDriver.code), brokerKeys: []});
+    map[truckKey] = canonicalCandidates;
+  });
+  (aliasRecords || []).forEach(function(record) {
+    const fields = record.fields || {};
+    const aliasKey = normLookupKey_(fields['Alias Value']);
+    if (!aliasKey) return;
+    const linkedTruckIds = airtableLinkIds_(fields['Maps To Truck']);
+    const linkedTruck = linkedTruckIds.length ? trucksById[linkedTruckIds[0]] : null;
+    const mappedCodeKey = normLookupKey_(fields['Maps To Code']);
+    const mappedTruck = mappedCodeKey ? Object.keys(trucksById).map(function(id) { return trucksById[id]; }).filter(function(truck) { return normLookupKey_(truck.code) === mappedCodeKey; })[0] : null;
+    const truck = linkedTruck || mappedTruck;
+    if (!truck) return;
+    const brokerKeys = airtableLinkIds_(fields['Broker']).reduce(function(keys, id) { return keys.concat(brokersById[id] || []); }, []).filter(Boolean).filter(function(key, index, all) { return all.indexOf(key) === index; });
+    const candidate = {code: truck.code, driverCode: truck.driverCode, brokerKeys: brokerKeys};
+    const candidates = map[aliasKey] || [];
+    const resultKey = candidate.code + '|' + candidate.driverCode;
+    const existing = candidates.filter(function(item) { return item.code + '|' + item.driverCode === resultKey; })[0];
+    if (existing) existing.brokerKeys = existing.brokerKeys.concat(candidate.brokerKeys).filter(function(key, index, all) { return all.indexOf(key) === index; });
+    else candidates.push(candidate);
+    map[aliasKey] = candidates;
+  });
+  return map;
+}
 
 function getAirtableToken_() {
   const token = PropertiesService.getScriptProperties()
@@ -186,6 +238,11 @@ function getPendingReviewBatchesFromAirtable(options) {
   const ticketRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.tickets);
   const parserRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.parserOutputs);
   const ocrRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.ocrOutputs);
+  const truckRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.trucks);
+  const driverRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.drivers);
+  const brokerRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.brokers);
+  const aliasRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.aliases);
+  const truckAliasMap = buildTruckAliasMap_(truckRecords, driverRecords, brokerRecords, aliasRecords);
   const parserById = {};
   const parserByValidationId = {};
   parserRecords.forEach(function(record) {
@@ -266,6 +323,7 @@ function getPendingReviewBatchesFromAirtable(options) {
       rate: value('Rate', first.rate), rateDisplay: displayMissing_(value('Rate', first.rate)),
       batchStatus: status, batchNotes: airtableText_(f['Batch Notes']), reviewer: airtableText_(f['Reviewer']),
       dataScope: airtableText_(f['Data Scope']), runLabel: airtableText_(f['Run Label']),
+      truckAliasMap: truckAliasMap,
       batchTitle: buildBatchDisplayTitle_({broker:value('Broker',first.broker), customerJob:value('Customer / Job',first.customerJob), poNumber:value('PO Number',first.poNumber), workOrder:value('Work Order / Order',first.workOrder), origin:value('Origin',first.origin), destination:value('Destination',first.destination), rate:value('Rate',first.rate)}, batchKey),
       ticketCount: 0, invoiceTotal: 0, invoiceTotalDisplay: formatMoney_(0), rows: rows
     };
