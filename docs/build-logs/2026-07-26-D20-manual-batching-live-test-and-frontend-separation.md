@@ -2,7 +2,7 @@
 
 ## Status
 
-**MANUAL BATCHING DEPLOYED FOR CONTROLLED TEST — LIVE AIRTABLE MUTATION NOT YET RUN — FRONT-END FILE SEPARATION IN PROGRESS**
+**FRONT-END SEPARATION COMPLETE — VERSION 82 LIVE — CONTROLLED MANUAL-BATCHING TEST READY — LIVE AIRTABLE MUTATION NOT YET RUN**
 
 ## Starting source state
 
@@ -58,20 +58,26 @@ No controlled live Airtable manual-batching write has been run yet.
 
 ## Controlled test candidates
 
-Two eligible unbatched Validation Queue records were selected for the controlled live test:
+Use exactly these two eligible unbatched Validation Queue records for the controlled live test:
 
 ```text
-rec0uwH3KaCPOqmHG
-VAL_INTAKE_MOTIVE_1024750548_1024750552
-Linked Ticket: recCVauUgZfHOU2jX
+Validation Queue Record ID: rec0uwH3KaCPOqmHG
+Validation ID: VAL_INTAKE_MOTIVE_1024750548_1024750552
+Linked Ticket Record ID: recCVauUgZfHOU2jX
 Ticket Number: 1052089985
+Truck: WRIGHT
+Material: 1/2" X 0 KILN FEED
+Quantity: 25.43
 ```
 
 ```text
-rec2NSd63jLIECVZa
-VAL_INTAKE_MOTIVE_1034043804_1034043807
-Linked Ticket: recjjGouH4B8Z2UoT
+Validation Queue Record ID: rec2NSd63jLIECVZa
+Validation ID: VAL_INTAKE_MOTIVE_1034043804_1034043807
+Linked Ticket Record ID: recjjGouH4B8Z2UoT
 Ticket Number: 0825536
+Truck: 2886
+Material: 11/2"SUPER BASE TEST
+Quantity: 21.65
 ```
 
 Both were independently verified as:
@@ -80,9 +86,41 @@ Both were independently verified as:
 - Processed to Tickets = unchecked
 - Do Not Bill = unchecked
 - Review Batches = empty
+- Assignment Source empty
+- Batch Lock unchecked
 - not one of the two existing Dispatch-linked test records
 
-The live test must still stop before execution for an explicit final approval checkpoint.
+The live test must stop before execution for an explicit final approval checkpoint.
+
+## Expected controlled-test result
+
+The test should create exactly one new Review Batch with:
+
+- Batch Key beginning with `MANUAL_`
+- Batch Status = `Draft`
+- Apply Batch Fields = unchecked
+- reciprocal links to exactly the two selected Validation Queue records
+
+Each selected Validation Queue record should receive:
+
+- Review Batches = the new Review Batch
+- Batch Assignment Source = `Manual`
+- Batch Lock = checked
+
+The test must not change:
+
+- Tickets
+- Parser Outputs
+- OCR Outputs
+- Review Status
+- Processed to Tickets
+- Do Not Bill
+- ticket approval state
+- Apply Batch Fields
+- Make
+- Google Sheets
+
+After the write, independently verify Airtable before expanding scope.
 
 ## Overview ticket-row cleanup
 
@@ -100,50 +138,9 @@ Implemented:
 
 Focused JavaScript syntax checks and `git diff --check` passed.
 
-## Apps Script deployment
+## Front-end file separation
 
-The approved local source was pushed to the existing Apps Script project.
-
-A Google reauthentication interruption occurred on the first `clasp push` attempt:
-
-```text
-invalid_grant
-invalid_rapt
-```
-
-After reauthentication, the push completed successfully.
-
-Apps Script Version 80 was created:
-
-```text
-Add manual Airtable batching and simplify overview ticket actions
-```
-
-Existing deployment updated in place:
-
-```text
-AKfycbzzjkCqwsiCO7vahT1BJn6S4fArwA5dTtsoVEmEz9c05i8P9RTprUOtZ0OKvp2prfc
-```
-
-Current deployed version:
-
-```text
-80
-```
-
-Creating and deploying Version 80 did not itself mutate Airtable.
-
-## Front-end file separation decision
-
-A standing project rule was established for Diane and future PRNG web apps:
-
-- HTML structure should remain in `Index.html`
-- CSS should live in a dedicated front-end include file
-- client-side JavaScript should live in a separate include file when practical
-- server-side Apps Script remains in `.gs` files
-- separation should not be forced when it would make the implementation less reliable or harder to maintain
-
-For Apps Script, the target structure is:
+Diane's front end is now separated into structure, style, and client-side behavior:
 
 ```text
 Index.html
@@ -154,38 +151,100 @@ AirtableReadAdapter.gs
 appsscript.json
 ```
 
-The intended Apps Script include pattern is:
+Implemented:
 
-```html
-<?!= include('Stylesheet'); ?>
-```
+- moved the existing CSS block unchanged from `Index.html` to `Stylesheet.html`
+- moved the existing client-side JavaScript block unchanged from `Index.html` to `JavaScript.html`
+- added `<?!= include('Stylesheet'); ?>` to `Index.html`
+- added `<?!= include('JavaScript'); ?>` to `Index.html`
+- added an `include()` helper in `Code.gs`
+- updated `doGet()` to use `HtmlService.createTemplateFromFile('Index').evaluate()`
+- confirmed no embedded `<style>` or `<script>` blocks remain in `Index.html`
+- confirmed syntax checks passed
+- confirmed `git diff --check` passed
 
-and:
+This established the standing PRNG rule:
 
-```html
-<?!= include('JavaScript'); ?>
-```
-
-with an include helper in `Code.gs` and `Index.html` served through `createTemplateFromFile('Index').evaluate()`.
-
-This is an organization refactor only. The CSS and client-side JavaScript must be moved unchanged before any styling edits are made.
+- HTML structure stays in `Index.html`
+- CSS lives in a dedicated stylesheet include
+- client-side JavaScript lives in a separate include when practical
+- server-side Apps Script remains in `.gs` files
+- separation is not forced when it would create an unnatural or less reliable design
 
 ## Historical note: CSS emancipation
 
 On 2026-07-26, Diane's CSS was formally granted freedom from the fiefdom of the monolithic HTML page.
 
-The practical reason is equally important: visual tuning, border changes, color-theme experiments, and detailed design review should be possible from one searchable stylesheet without excavating markup and application logic. This also establishes a repeatable front-end organization standard for future PRNG builds.
+The practical reason is equally important: visual tuning, border changes, color-theme experiments, typography changes, and detailed design review can now be handled from one searchable stylesheet without excavating markup and application logic.
 
-## Ticket-number styling request
+Ernie is pleased.
 
-A follow-up visual request remains pending after file separation:
+## Ticket-number badge styling
 
-- give the overview Ticket # badge the same background treatment as the Draft badge/button
-- remove its border
-- use white text
-- retain its current size, padding, weight, and right alignment
+The overview Ticket # badge was updated in `Stylesheet.html`:
 
-This styling change should be made in `Stylesheet.html` after the separation refactor is verified.
+- background = `var(--aqua)`
+- text = white
+- border = none
+- existing size, padding, weight, radius, and right alignment retained
+
+The styling matches the Draft color treatment without changing ticket-row behavior.
+
+## Roboto web font
+
+Roboto is now the primary Diane interface font.
+
+`Stylesheet.html` loads:
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+```
+
+The body font stack is:
+
+```css
+font-family:'Roboto',Arial,Helvetica,sans-serif;
+```
+
+This allows visitors to see Roboto without installing it locally, with standard fallbacks if Google Fonts is unavailable.
+
+## Apps Script deployment history
+
+Existing deployment:
+
+```text
+AKfycbzzjkCqwsiCO7vahT1BJn6S4fArwA5dTtsoVEmEz9c05i8P9RTprUOtZ0OKvp2prfc
+```
+
+### Version 80
+
+```text
+Add manual Airtable batching and simplify overview ticket actions
+```
+
+Deployed successfully after Google reauthentication resolved an initial `invalid_grant` / `invalid_rapt` error.
+
+### Version 81
+
+```text
+Separate front-end files and restyle ticket number badge
+```
+
+Deployed successfully.
+
+### Version 82
+
+```text
+Load Roboto web font
+```
+
+Current live deployment version:
+
+```text
+82
+```
+
+Creating and deploying these versions did not itself mutate Airtable.
 
 ## Confirmed unchanged systems
 
@@ -202,12 +261,21 @@ This styling change should be made in `Stylesheet.html` after the separation ref
 - no broader production scope enabled
 - no Git commit or push in `diane-apps-script`
 
+## Deferred repository consolidation
+
+The Apps Script source currently lives in the separate `diane-apps-script` repository while Diane documentation and build logs live in `diane`.
+
+The user wants the Apps Script source moved into the main Diane repository later, likely under an `apps-script/` directory. That consolidation is intentionally deferred until the review-page batching test is complete.
+
 ## Next steps
 
-1. Finish and verify the pure front-end file separation.
-2. Confirm no visual or behavioral change.
-3. Apply the Ticket # badge styling in `Stylesheet.html` as a separate focused change.
-4. Push, version, and deploy only after review and approval.
-5. Re-open the deployed review page and verify the UI.
-6. Run the controlled manual-batching test with exactly the two approved Validation Queue records.
-7. Independently verify Airtable before expanding scope.
+1. Open the live Version 82 review page.
+2. Verify the page loads normally, Roboto renders, the aqua Ticket # badge remains correct, row click works, and ticket selection works.
+3. Locate exactly Ticket # `1052089985` and Ticket # `0825536`.
+4. Confirm both correspond to Validation Queue records `rec0uwH3KaCPOqmHG` and `rec2NSd63jLIECVZa`.
+5. Select only those two tickets.
+6. Stop and show the selected state before clicking `Create Batch from Selected`.
+7. After explicit approval, create exactly one manual batch.
+8. Independently verify the new Review Batch and both Validation Queue links in Airtable.
+9. Stop on any partial failure and report exact state without automatic rollback.
+10. Do not expand to the remaining production scope until the two-record test is proven.
