@@ -24,8 +24,12 @@ const REVIEW_CORRECTIONS_FOLDER_ID = '1k9MEd_2omg9MyTaniksN-YeMe8MBElcv';
 
 
 
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
 function doGet() {
-return HtmlService.createHtmlOutputFromFile('Index')
+return HtmlService.createTemplateFromFile('Index').evaluate()
   .setTitle('Diane Ticket Review')
   .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -77,6 +81,11 @@ cols.forEach(c => { if (!headerMap[c]) throw new Error('Missing required column:
 
 
 function norm_(v) { return String(v || '').trim(); }
+
+function isAirtableReviewSource_(source) {
+  const normalized = String(source || '').trim().toUpperCase();
+  return normalized === 'AIRTABLE' || normalized === 'AIRTABLE_TEST';
+}
 
 
 
@@ -745,6 +754,14 @@ function approveBatch(payload) {
 
 
 function createManualBatchFromSelected(payload) {
+ if (payload && isAirtableReviewSource_(payload.source)) {
+   if (payload.rowNumbers || payload.rowNumber) throw new Error('Airtable manual batching does not accept row numbers.');
+   return createManualBatchFromSelectedAirtable_(payload);
+ }
+ return createManualBatchFromSelectedLegacySheets_(payload);
+}
+
+function createManualBatchFromSelectedLegacySheets_(payload) {
  if (!payload) throw new Error('Missing manual batch payload.');
  const rowNumbers = (payload.rowNumbers || [])
    .map(n => Number(n))
@@ -802,6 +819,24 @@ function createManualBatchFromSelected(payload) {
  };
 }
 function addSelectedTicketsToExistingBatch(payload) {
+ if (payload && isAirtableReviewSource_(payload.source)) {
+   if (payload.rowNumbers || payload.rowNumber || payload.targetBatchKey) throw new Error('Airtable add-to-batch does not accept row numbers or batch keys.');
+   return addSelectedTicketsToExistingBatchAirtable_(payload);
+ }
+ return addSelectedTicketsToExistingBatchLegacySheets_(payload);
+}
+
+function applySharedFieldsToAllTickets(payload) {
+ if (!payload || !isAirtableReviewSource_(payload.source)) throw new Error('Shared-field copy is available only for Airtable review records.');
+ return applySharedFieldsToAllTicketsAirtable_(payload);
+}
+
+function removeTicketsFromBatch(payload) {
+ if (!payload || !isAirtableReviewSource_(payload.source)) throw new Error('Remove from batch is available only for Airtable review records.');
+ return removeTicketsFromBatchAirtable_(payload);
+}
+
+function addSelectedTicketsToExistingBatchLegacySheets_(payload) {
  if (!payload) throw new Error('Missing add-to-batch payload.');
  const targetBatchKey = norm_(payload.targetBatchKey || payload.batchKey);
  if (!targetBatchKey) throw new Error('Choose an existing batch before adding tickets.');
@@ -1049,43 +1084,6 @@ return { ok: true, rowNumber, message: 'Draft saved for row ' + rowNumber + '.' 
 
 
 
-
-function saveAirtableTicketFields(payload) {
-  if (!payload) throw new Error('Missing save payload.');
-  const validationRecordId = norm_(payload.validationRecordId);
-  if (!validationRecordId) throw new Error('Missing Airtable validation record ID.');
-  const numericField = function(value, label) {
-    const text = norm_(value);
-    if (text === '') return undefined;
-    const number = Number(text);
-    if (!isFinite(number)) throw new Error('Invalid numeric value for ' + label + ': ' + value);
-    return number;
-  };
-  const fields = {
-    'Final Ticket Date': norm_(payload.ticketDate),
-    'Final Ticket Number': norm_(payload.ticketNumber),
-    'Final Driver': norm_(payload.driver),
-    'Final Quantity': numericField(payload.quantity, 'Final Quantity'),
-    'Final Rate': numericField(payload.rate, 'Final Rate'),
-    'Final Total': numericField(payload.lineTotal, 'Final Total')
-  };
-  const response = UrlFetchApp.fetch(
-    DIANE_AIRTABLE_API_ROOT + DIANE_AIRTABLE_BASE_ID + '/' +
-    DIANE_AIRTABLE_TABLES.validationQueue + '/' + encodeURIComponent(validationRecordId),
-    {
-      method: 'patch',
-      contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + getAirtableToken_() },
-      payload: JSON.stringify({ fields: fields }),
-      muteHttpExceptions: true
-    }
-  );
-  const status = response.getResponseCode();
-  if (status < 200 || status >= 300) {
-    throw new Error('Airtable ticket save failed (' + status + '): ' + response.getContentText());
-  }
-  return { ok: true, validationRecordId: validationRecordId, message: 'Draft saved to Airtable.' };
-}
 
 function approveTicket(payload) {
 if (!payload) throw new Error('Missing approval payload.');

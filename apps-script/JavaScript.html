@@ -1,0 +1,316 @@
+<script>
+var REVIEW_BATCHES=[],CURRENT_SCAN_URL='',CURRENT_ROW_NUMBER=null,CURRENT_AIRTABLE_VALIDATION_RECORD_ID='',CURRENT_BATCH_INDEX=null,CURRENT_ROW_INDEX=null,SHOULD_SCROLL_ON_DETAIL_LOAD=false,RESTORE_SCROLL_Y=null,BATCH_EDIT_MODE=false,TICKET_EDIT_MODE=true,SELECTED_TICKET_ROWS={},ARCHIVED_BATCH_VISIBILITY={},SHOW_PREVIOUS_BATCHES=false,REVIEW_QUEUE_SOURCE='AIRTABLE_TEST';
+var APPROVAL_REQUIRED_FIELDS=[
+{id:'ticketNumber',label:'Ticket #',type:'text'},{id:'ticketDate',label:'Ticket Date',type:'text'},
+{id:'broker',label:'Broker',type:'text'},{id:'customerJob',label:'Customer / Job',type:'text'},
+{id:'poNumber',label:'PO Number',type:'text'},{id:'truck',label:'Truck',type:'text'},
+{id:'driver',label:'Driver',type:'text'},{id:'material',label:'Material',type:'text'},
+{id:'quantity',label:'Quantity',type:'zeroOrPositiveNumber'},{id:'rate',label:'Rate',type:'zeroOrPositiveNumber'},
+{id:'reviewer',label:'Reviewer',type:'text'}
+];
+function setStatus(m){var s=document.getElementById('status');if(s)s.textContent=m;}
+function updatePreviousBatchesButton(){var b=document.getElementById('previousBatchesButton');if(!b)return;b.textContent=SHOW_PREVIOUS_BATCHES?'Hide Previous Batches':'View Previous Batches';}
+function togglePreviousBatches(){SHOW_PREVIOUS_BATCHES=!SHOW_PREVIOUS_BATCHES;updatePreviousBatchesButton();reloadBatches();}
+function setSaveStatus(m,t){var s=document.getElementById('saveStatus');s.className='save-status';if(t)s.classList.add(t);s.textContent=m;}
+function setBatchSaveStatus(m,t){var s=document.getElementById('batchSaveStatus');if(!s)return;s.className='save-status';if(t)s.classList.add(t);s.textContent=m;}
+function setApprovalAlert(m){var a=document.getElementById('approvalAlert');if(!a)return;if(!m){a.textContent='';a.classList.remove('visible');return;}a.textContent=m;a.classList.add('visible');}
+function clearFieldErrors(){APPROVAL_REQUIRED_FIELDS.forEach(function(f){var i=document.getElementById(f.id);if(i)i.classList.remove('field-error');});}
+function markFieldError(id){var i=document.getElementById(id);if(i)i.classList.add('field-error');}
+function getDrivePreviewUrl(url){var m=String(url||'').match(/\/d\/([^/]+)/);return m?'https://drive.google.com/file/d/'+m[1]+'/preview':String(url||'');}
+function openScanReviewWindow(){if(!CURRENT_SCAN_URL){alert('No scan URL found.');return;}window.open(CURRENT_SCAN_URL,'DianeScanReview','width=1050,height=900,left=40,top=40,resizable=yes,scrollbars=yes');}
+function setReplaceScanStatus(m,t){var s=document.getElementById('replaceScanStatus');if(!s)return;s.className='save-status';if(t)s.classList.add(t);s.textContent=m;}
+function isAirtableReviewSource(source){var normalized=String(source||'').trim().toUpperCase();return normalized==='AIRTABLE'||normalized==='AIRTABLE_TEST';}
+function toggleReplaceScanPanel(){var p=document.getElementById('replaceScanPanel');if(!p)return;p.classList.toggle('hidden');}
+function updateCurrentScanUrl(url,fileName){CURRENT_SCAN_URL=url||'';var row=getCurrentRow();if(row){row.sourceFileUrl=url||row.sourceFileUrl;row.sourceFileName=fileName||row.sourceFileName;}var open=document.getElementById('openScanButton');if(open)open.href=CURRENT_SCAN_URL||'#';var frame=document.getElementById('scanFrame');if(frame)frame.src=getDrivePreviewUrl(CURRENT_SCAN_URL);}
+function replaceCurrentTicketScan(){if(REVIEW_QUEUE_SOURCE==='AIRTABLE_TEST'&&!CURRENT_AIRTABLE_VALIDATION_RECORD_ID){setReplaceScanStatus('No active Airtable ticket selected.','error');return;}if(REVIEW_QUEUE_SOURCE!=='AIRTABLE_TEST'&&!CURRENT_ROW_NUMBER){setReplaceScanStatus('No active ticket selected.','error');return;}var fileInput=document.getElementById('replaceScanFile');var file=fileInput&&fileInput.files&&fileInput.files[0];if(!file){setReplaceScanStatus('Choose a corrected image or PDF first.','error');return;}var btn=document.getElementById('replaceScanButton');if(btn){btn.disabled=true;btn.textContent='Uploading...';}setReplaceScanStatus('Uploading replacement scan...','');var reader=new FileReader();reader.onload=function(e){var payload={source:REVIEW_QUEUE_SOURCE,validationRecordId:CURRENT_AIRTABLE_VALIDATION_RECORD_ID,rowNumber:CURRENT_ROW_NUMBER,fileName:file.name,mimeType:file.type||'application/octet-stream',dataBase64:e.target.result,notes:getInputValue('replaceScanNotes'),reviewer:getReviewer()||getInputValue('detailBatchReviewer')||'system'};google.script.run.withSuccessHandler(function(r){if(btn){btn.disabled=false;btn.textContent='Upload Replacement Scan';}setReplaceScanStatus(r.message||'Replacement scan uploaded.','success');updateCurrentScanUrl(r.fileUrl,r.fileName);if(fileInput)fileInput.value='';}).withFailureHandler(function(err){if(btn){btn.disabled=false;btn.textContent='Upload Replacement Scan';}setReplaceScanStatus('Replacement upload failed: '+String(err&&err.message?err.message:err),'error');}).replaceTicketScan(payload);};reader.onerror=function(){if(btn){btn.disabled=false;btn.textContent='Upload Replacement Scan';}setReplaceScanStatus('Could not read selected file.','error');};reader.readAsDataURL(file);}
+function createTextCell(t){var td=document.createElement('td');td.textContent=t||'';return td;}
+function createStatusBadge(label,cls){var b=document.createElement('span');b.className='badge '+(cls||'status-new');b.textContent=label||'New';return b;}
+function getTicketSelectionId(row){if(!row)return '';return row.validationRecordId||row.rowNumber||'';}
+function getSelectedTicketIds(){return Object.keys(SELECTED_TICKET_ROWS).filter(function(id){return SELECTED_TICKET_ROWS[id];});}
+function updateSelectionToolbar(){var rows=getSelectedTicketIds();var tb=document.getElementById('selectionToolbar');var ct=document.getElementById('selectionCount');if(ct)ct.textContent=rows.length+' selected';updateExistingBatchDropdown();if(tb)tb.classList[rows.length?'remove':'add']('hidden');}
+function toggleTicketSelection(selectionId,checked){if(!selectionId)return;selectionId=String(selectionId);if(checked)SELECTED_TICKET_ROWS[selectionId]=true;else delete SELECTED_TICKET_ROWS[selectionId];updateSelectionToolbar();}
+function clearSelectedTickets(){SELECTED_TICKET_ROWS={};var boxes=document.querySelectorAll('.ticket-select-checkbox,.batch-select-all-checkbox');for(var i=0;i<boxes.length;i++){boxes[i].checked=false;boxes[i].indeterminate=false;}updateSelectionToolbar();}
+function isSelectableTicketForBatch(row){return !!(getTicketSelectionId(row)&&row.statusCode!=='PROCESSED');}
+function setBatchTicketsSelected(batchIndex,checked){var batch=REVIEW_BATCHES[batchIndex];if(!batch||!batch.rows)return;batch.rows.forEach(function(row){var id=getTicketSelectionId(row);if(isSelectableTicketForBatch(row)){if(checked)SELECTED_TICKET_ROWS[String(id)]=true;else delete SELECTED_TICKET_ROWS[String(id)];}});renderBatches(REVIEW_BATCHES);updateSelectionToolbar();}
+function selectBatchTickets(batchIndex){setBatchTicketsSelected(batchIndex,true);}
+function getExistingManualBatches(){return(REVIEW_BATCHES||[]).filter(function(batch){return batch&&batch.batchKey&&/^MANUAL[_-]/i.test(String(batch.batchKey));});}
+function updateExistingBatchDropdown(){var sel=document.getElementById('existingBatchSelect');if(!sel)return;var current=sel.value;sel.innerHTML='';var ph=document.createElement('option');ph.value='';ph.textContent='Add selected to batch...';sel.appendChild(ph);var remove=document.createElement('option');remove.value='__REMOVE_SELECTED_FROM_BATCH__';remove.textContent='Remove selected from batch';sel.appendChild(remove);getExistingManualBatches().forEach(function(batch){var o=document.createElement('option');o.value=isAirtableReviewSource(REVIEW_QUEUE_SOURCE)?batch.batchRecordId:batch.batchKey;o.textContent=(batch.batchTitle||batch.batchKey)+' ('+(batch.ticketCount||0)+' tickets)';sel.appendChild(o);});if(current){for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===current){sel.value=current;break;}}}}
+function generateManualBatchRequestId(){return 'mb_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12);}
+function setManualBatchButtonBusy(busy){var b=document.getElementById('createBatchButton');if(!b)return;b.disabled=busy;b.textContent=busy?'Creating batch...':'Create Batch from Selected';}
+function addSelectedTicketsToExistingBatch(){var ids=getSelectedTicketIds();var sel=document.getElementById('existingBatchSelect');var target=sel?sel.value:'';if(!ids.length){setStatus('Select at least 1 ticket first.');return;}if(target==='__REMOVE_SELECTED_FROM_BATCH__'){removeSelectedTicketsFromBatch();return;}if(!target){setStatus('Choose an existing batch first.');return;}var label=sel&&sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].textContent:target;if(!confirm('Add '+ids.length+' selected ticket(s) to this batch?\n\n'+label))return;setStatus('Adding selected tickets to batch...');var payload=isAirtableReviewSource(REVIEW_QUEUE_SOURCE)?{source:REVIEW_QUEUE_SOURCE,validationRecordIds:ids,targetBatchRecordId:target,clientRequestId:generateManualBatchRequestId()}:{rowNumbers:ids,targetBatchKey:target,reviewer:''};google.script.run.withSuccessHandler(function(r){clearSelectedTickets();setStatus(r.message||'Tickets added to batch. Reloading...');reloadBatches();hydrateOverviewReviewer();}).withFailureHandler(function(e){setStatus('Add to batch failed: '+String(e&&e.message?e.message:e));updateSelectionToolbar();}).addSelectedTicketsToExistingBatch(payload);}
+function toggleArchivedBatch(batchKey){if(!batchKey)return;ARCHIVED_BATCH_VISIBILITY[batchKey]=!ARCHIVED_BATCH_VISIBILITY[batchKey];renderBatches(REVIEW_BATCHES);updateSelectionToolbar();}
+function getOverviewReviewer(){var i=document.getElementById('overviewReviewer');var v=i?String(i.value||'').trim().toLowerCase():'';if(v){try{localStorage.setItem('dianeReviewerInitials',v);}catch(e){}return v;}try{return String(localStorage.getItem('dianeReviewerInitials')||'').trim().toLowerCase();}catch(e){return '';}}
+function setOverviewReviewer(v){v=String(v||'').trim().toLowerCase();var i=document.getElementById('overviewReviewer');if(i)i.value=v;try{if(v)localStorage.setItem('dianeReviewerInitials',v);}catch(e){}}
+function hydrateOverviewReviewer(){setOverviewReviewer(getOverviewReviewer());}
+function approveSelectedTickets(){var ids=getSelectedTicketIds();if(!ids.length){setStatus('Select at least 1 ticket to approve.');return;}if(isAirtableReviewSource(REVIEW_QUEUE_SOURCE)){setStatus('Bulk approval is not available yet for Airtable records. Review and approve each ticket individually.');return;}approveBatchByKey('SELECTED_ROWS',getOverviewReviewer(),function(r){clearSelectedTickets();setStatus((r&&r.message)||'Selected tickets approved. Reloading...');reloadBatches();},ids);}
+
+
+function createBatchFromSelected(){var ids=getSelectedTicketIds();if(ids.length<2){setStatus('Select at least 2 tickets to create a batch.');return;}var tb=document.getElementById('selectionToolbar');if(tb)tb.classList.add('loading');setManualBatchButtonBusy(true);setStatus('Creating manual batch from '+ids.length+' selected tickets...');var payload=isAirtableReviewSource(REVIEW_QUEUE_SOURCE)?{source:REVIEW_QUEUE_SOURCE,validationRecordIds:ids,clientRequestId:generateManualBatchRequestId()}:{rowNumbers:ids,reviewer:''};google.script.run.withSuccessHandler(function(r){setManualBatchButtonBusy(false);clearSelectedTickets();setStatus(r.message||'Manual batch created. Reloading...');reloadBatches();}).withFailureHandler(function(e){setManualBatchButtonBusy(false);setStatus('Manual batch create failed: '+String(e&&e.message?e.message:e));updateSelectionToolbar();}).createManualBatchFromSelected(payload);}
+function getInputValue(id){var i=document.getElementById(id);return i?(i.value||''):'';}
+function setInputValue(id,v){var i=document.getElementById(id);if(i)i.value=(v===0||v==='0')?'0':(v||'');}
+function setTextValue(id,v){var e=document.getElementById(id);if(e)e.textContent=(v===0||v==='0')?'0':(v||'Missing');}
+function hasPayloadValue(v){return v===0||v==='0'||String(v||'').trim()!=='';}
+var BROKER_MAP={ST:'Statewide Materials',SW:'Statewide Materials',NR:'Nickel Rock',TNB:'Twisted Nail'};
+var DRIVER_MAP={DS:'David Shelton',DC:'David Clifton',EE:'Ernie Ernst'};
+var TRUCK_MAP={W01:'Wright 01',W02:'Wright 02',TNB829:'TNB 829',TNB1141:'TNB 1141'};
+var TRUCK_DEFAULT_DRIVER_MAP={W01:'DC',W02:'DS'};
+var AUTO_SUGGESTED_DRIVER='';
+function normTruckKey(v){return String(v||'').trim().replace(/[^A-Za-z0-9]+/g,' ').replace(/\s+/g,' ').trim().toUpperCase();}
+function getDisplayName(map,v){var t=String(v||'').trim();return map[t.toUpperCase()]||t||'Missing';}
+function getDefaultDriverForTruck(v){return TRUCK_DEFAULT_DRIVER_MAP[normTruckKey(v)]||'';}
+function resolveTruckAliasForCurrentContext(v){var batch=getCurrentBatch();var candidates=batch&&batch.truckAliasMap?batch.truckAliasMap[normTruckKey(v)]||[]:[];if(candidates.length===1)return candidates[0];var row=getCurrentRow()||{};var brokerKeys=[normTruckKey(row.broker),normTruckKey(batch&&batch.broker)].filter(Boolean).filter(function(key,index,all){return all.indexOf(key)===index;});var brokerMatches=candidates.filter(function(candidate){return candidate.brokerKeys.some(function(key){return brokerKeys.indexOf(key)!==-1;});});return brokerMatches.length===1?brokerMatches[0]:null;}
+function applyTruckDefaultDriver(){var current=String(getInputValue('driver')||'').trim();if(current&&!AUTO_SUGGESTED_DRIVER){return;}if(current&&current!==AUTO_SUGGESTED_DRIVER){AUTO_SUGGESTED_DRIVER='';return;}var resolved=resolveTruckAliasForCurrentContext(getInputValue('truck'));var suggestion=resolved&&resolved.driverCode||getDefaultDriverForTruck(getInputValue('truck'));setInputValue('driver',suggestion);AUTO_SUGGESTED_DRIVER=String(suggestion||'').trim();}
+function bindTruckDefaultDriverSuggestion(){var truck=document.getElementById('truck');var driver=document.getElementById('driver');if(!truck||!driver||truck.dataset.defaultDriverBound==='yes')return;truck.dataset.defaultDriverBound='yes';truck.addEventListener('change',applyTruckDefaultDriver);driver.addEventListener('input',function(){var current=String(driver.value||'').trim();if(current!==AUTO_SUGGESTED_DRIVER)AUTO_SUGGESTED_DRIVER='';});}
+function normNum(v){return String(v||'').trim().replace(/[$,]/g,'');}
+function isPositiveNumber(v){var t=normNum(v);if(!t)return false;var n=Number(t);return !isNaN(n)&&n>=0;}
+function formatMoney(v){var n=Number(v||0);return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function formatCurrencyOrBlank(v){var n=numberFromValue(v);return n===null?'':formatMoney(n);}
+function numberFromValue(v){var t=normNum(v);if(!t)return null;var n=Number(t);return isNaN(n)?null:n;}
+function getTicketInvoiceAmount(row){if(!row)return null;var existing=numberFromValue(row.lineTotal);if(existing!==null)return existing;var q=numberFromValue(row.quantity);var r=numberFromValue(row.rate);if(q===null||r===null)return null;return q*r;}
+function getTicketDriverPay(row){var amt=getTicketInvoiceAmount(row);return amt===null?null:amt*.30;}
+function getReviewer(){return getInputValue('reviewer').trim().toLowerCase();}
+function getCurrentBatch(){return(CURRENT_BATCH_INDEX!==null&&REVIEW_BATCHES[CURRENT_BATCH_INDEX])?REVIEW_BATCHES[CURRENT_BATCH_INDEX]:null;}
+function getCurrentRow(){var b=getCurrentBatch();return(b&&CURRENT_ROW_INDEX!==null&&b.rows[CURRENT_ROW_INDEX])?b.rows[CURRENT_ROW_INDEX]:null;}
+function isTicketNeedingReview(row){return row&&row.statusCode!=='APPROVED'&&row.statusCode!=='PROCESSED'&&row.statusCode!=='DO_NOT_BILL';}
+function findNextReviewIndex(batch,cur){var rows=batch&&batch.rows?batch.rows:[];for(var i=cur+1;i<rows.length;i++){if(isTicketNeedingReview(rows[i]))return i;}for(var j=0;j<cur;j++){if(isTicketNeedingReview(rows[j]))return j;}return -1;}
+function buildTicketPayload(){return{rowNumber:CURRENT_ROW_NUMBER,source:REVIEW_QUEUE_SOURCE,validationRecordId:CURRENT_AIRTABLE_VALIDATION_RECORD_ID,ticketNumber:getInputValue('ticketNumber'),ticketDate:getInputValue('ticketDate'),broker:getInputValue('broker'),customerJob:getInputValue('customerJob'),poNumber:getInputValue('poNumber'),workOrder:getInputValue('workOrder'),truck:getInputValue('truck'),driver:getInputValue('driver'),material:getInputValue('material'),quantity:getInputValue('quantity'),rate:getInputValue('rate'),origin:getInputValue('origin'),destination:getInputValue('destination'),lineTotal:getInputValue('lineTotal'),reviewNotes:getInputValue('reviewNotes'),reviewer:getReviewer()};}
+function validateApprovalFields(){var problems=[];clearFieldErrors();APPROVAL_REQUIRED_FIELDS.forEach(function(f){var v=getInputValue(f.id).trim();if(!v){problems.push(f.label+' is required.');markFieldError(f.id);return;}if(f.type==='zeroOrPositiveNumber'&&!isPositiveNumber(v)){problems.push(f.label+' must be a number 0 or greater.');markFieldError(f.id);}});return problems;}
+function showApprovalBlocked(problems){setApprovalAlert('Approval blocked. '+problems.join(' '));setSaveStatus('No changes saved.','error');var a=document.getElementById('approvalAlert');if(a)a.scrollIntoView({behavior:'smooth',block:'center'});}
+function clearApprovalBlocked(){setApprovalAlert('');clearFieldErrors();}
+function buildBatchPayloadFromDetail(){var batch=getCurrentBatch();if(!batch)throw new Error('No active batch selected.');return{batchKey:batch.batchKey,broker:getInputValue('detailBatchBroker'),customerJob:getInputValue('detailBatchCustomerJob'),poNumber:getInputValue('detailBatchPoNumber'),workOrder:getInputValue('detailBatchWorkOrder'),origin:getInputValue('detailBatchOrigin'),destination:getInputValue('detailBatchDestination'),truck:getInputValue('detailBatchTruck'),driver:getInputValue('detailBatchDriver'),rate:getInputValue('detailBatchRate'),batchNotes:getInputValue('detailBatchNotes'),reviewer:getInputValue('detailBatchReviewer').trim().toLowerCase(),batchStatus:'Draft',applyToTickets:'No',formAction:'Save Batch Draft'};}
+function updateSummary(){var row=getCurrentRow();var s=document.getElementById('summaryStatus');if(s){s.innerHTML='';if(row)s.appendChild(createStatusBadge(row.statusLabel,row.statusClassName));}var line=document.getElementById('summaryLineTotal');var pay=document.getElementById('summaryDriverPay');var amt=getTicketInvoiceAmount(row);if(line)line.textContent=amt===null?'Missing':formatMoney(amt);if(pay)pay.textContent=amt===null?'Missing':formatMoney(amt*.30);}
+function updateStaticBatchSummary(batch){setTextValue('staticBatchBroker',getDisplayName(BROKER_MAP,batch.broker));setTextValue('staticBatchCustomerJob',batch.customerJob);setTextValue('staticBatchPoNumber',batch.poNumber);setTextValue('staticBatchWorkOrder',batch.workOrder);setTextValue('staticBatchOrigin',batch.origin);setTextValue('staticBatchDestination',batch.destination);setTextValue('staticBatchTruck',getDisplayName(TRUCK_MAP,batch.truck));setTextValue('staticBatchDriver',getDisplayName(DRIVER_MAP,batch.driver));setTextValue('staticBatchRate',batch.rate);setTextValue('staticBatchReviewer',batch.reviewer);}
+function updateStaticTicketSummary(p){setTextValue('staticTicketNumber',p.ticketNumber);setTextValue('staticTicketDate',p.ticketDate);setTextValue('staticTicketBroker',getDisplayName(BROKER_MAP,p.broker));setTextValue('staticTicketCustomerJob',p.customerJob);setTextValue('staticTicketPoNumber',p.poNumber);setTextValue('staticTicketWorkOrder',p.workOrder);setTextValue('staticTicketTruck',getDisplayName(TRUCK_MAP,p.truck));setTextValue('staticTicketDriver',getDisplayName(DRIVER_MAP,p.driver));setTextValue('staticTicketMaterial',p.material);setTextValue('staticTicketQuantity',p.quantity);var staticRate=document.getElementById('staticTicketRate');if(staticRate)staticRate.textContent=formatCurrencyOrBlank(p.rate);setTextValue('staticTicketOrigin',p.origin);setTextValue('staticTicketDestination',p.destination);setTextValue('staticTicketLineTotal',p.lineTotal);setTextValue('staticTicketReviewer',p.reviewer);}
+function showBatchStaticView(){var batch=getCurrentBatch();if(!batch)return;updateStaticBatchSummary(batch);document.getElementById('batchStaticView').classList.remove('hidden');document.getElementById('batchEditView').classList.add('hidden');BATCH_EDIT_MODE=false;}
+function showBatchEditView(){document.getElementById('batchStaticView').classList.add('hidden');document.getElementById('batchEditView').classList.remove('hidden');BATCH_EDIT_MODE=true;}
+function editCurrentBatchFields(){var batch=getCurrentBatch();if(batch)fillDetailBatchPanel(batch);showBatchEditView();}
+function updateSummarySaveVisibility(){var save=document.getElementById('saveButton');if(save)save.classList.toggle('hidden',!TICKET_EDIT_MODE);}
+function showTicketStaticView(){updateStaticTicketSummary(buildTicketPayload());document.getElementById('ticketStaticView').classList.remove('hidden');document.getElementById('ticketEditView').classList.add('hidden');TICKET_EDIT_MODE=false;updateSummarySaveVisibility();updateReturnToDraftButton();updateNavButtons();}
+function showTicketEditView(){document.getElementById('ticketStaticView').classList.add('hidden');document.getElementById('ticketEditView').classList.remove('hidden');TICKET_EDIT_MODE=true;updateSummarySaveVisibility();updateReturnToDraftButton();updateNavButtons();}
+function editCurrentTicketFields(){showTicketEditView();}
+function applyBatchPayloadToCurrentTicket(payload){var row=getCurrentRow();if(!row)return;['broker','customerJob','poNumber','workOrder','origin','destination','truck','driver','rate','reviewer'].forEach(function(k){if(hasPayloadValue(payload[k])){row[k]=payload[k];setInputValue(k,payload[k]);}});updateSummary();updateStaticTicketSummary(buildTicketPayload());}
+function applyBatchPayloadToCurrentBatchRows(payload){var batch=getCurrentBatch();if(!batch||!batch.rows){applyBatchPayloadToCurrentTicket(payload);return;}var keys=['broker','customerJob','poNumber','workOrder','origin','destination','truck','driver','rate','reviewer'];batch.rows.forEach(function(row){if(!isSelectableTicketForBatch(row))return;keys.forEach(function(k){if(hasPayloadValue(payload[k]))row[k]=payload[k];});});applyBatchPayloadToCurrentTicket(payload);updateStaticBatchSummary(batch);updateSummary();}
+function updateLocalRowFromPayload(payload){var row=getCurrentRow();if(!row)return;['ticketNumber','ticketDate','broker','customerJob','poNumber','workOrder','truck','driver','material','quantity','rate','origin','destination','lineTotal','reviewNotes'].forEach(function(k){row[k]=payload[k];});if(row.statusCode==='NEW'){row.statusCode='DRAFT';row.statusLabel='Draft';row.statusClassName='status-draft';row.buttonLabel='Review';row.buttonClassName='warning';}updateSummary();updateStaticTicketSummary(payload);}
+function updateLocalBatchFromPayload(payload){var batch=getCurrentBatch();if(!batch)return;['broker','customerJob','poNumber','workOrder','origin','destination','truck','driver','rate','batchNotes','reviewer'].forEach(function(k){batch[k]=payload[k];});batch.batchHasSavedRecord=true;batch.batchFormAction=payload.formAction||batch.batchFormAction||'Save Batch Draft';updateStaticBatchSummary(batch);}
+function fillDetailBatchPanel(batch){['Broker','CustomerJob','PoNumber','WorkOrder','Origin','Destination','Truck','Driver','Rate','Reviewer','Notes'].forEach(function(f){var key=f.charAt(0).toLowerCase()+f.slice(1);setInputValue('detailBatch'+f,batch[key]);});}
+function updateReturnToDraftButton(){var row=getCurrentRow();var show=row&&row.statusCode==='APPROVED';['returnToDraftButton','returnToDraftButtonStatic'].forEach(function(id){var b=document.getElementById(id);if(b)b.classList[show?'remove':'add']('hidden');});}
+function updateNavButtons(){var rows=getCurrentBatch()&&getCurrentBatch().rows||[];var disP=CURRENT_ROW_INDEX<=0;var disN=CURRENT_ROW_INDEX>=rows.length-1;['previousTicketButton','previousTicketButtonBottom','previousTicketButtonStatic'].forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=disP;});['nextTicketButton','nextTicketButtonBottom','nextTicketButtonStatic'].forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=disN;});}
+function preserveScroll(){RESTORE_SCROLL_Y=window.scrollY||window.pageYOffset||0;}
+function restoreScroll(){if(RESTORE_SCROLL_Y===null)return;var y=RESTORE_SCROLL_Y;RESTORE_SCROLL_Y=null;window.setTimeout(function(){window.scrollTo(0,y);},0);}
+function showPreviousTicket(){if(CURRENT_ROW_INDEX===null||CURRENT_ROW_INDEX<=0)return;preserveScroll();SHOULD_SCROLL_ON_DETAIL_LOAD=false;showTicketDetail(CURRENT_BATCH_INDEX,CURRENT_ROW_INDEX-1);}
+function showNextTicket(){var batch=getCurrentBatch();if(!batch)return;var rows=batch.rows||[];if(CURRENT_ROW_INDEX>=rows.length-1)return;preserveScroll();SHOULD_SCROLL_ON_DETAIL_LOAD=false;showTicketDetail(CURRENT_BATCH_INDEX,CURRENT_ROW_INDEX+1);}
+function renderBatches(batches){REVIEW_BATCHES=batches||[];updatePreviousBatchesButton();var app=document.getElementById('app');if(!batches||!batches.length){app.className='empty';app.textContent=SHOW_PREVIOUS_BATCHES?'No previous batches found.':'No review batches found.';setStatus(SHOW_PREVIOUS_BATCHES?'No previous batches found.':'Review queue is clear.');return;}app.className='';app.innerHTML='';setStatus('Loaded '+batches.length+(SHOW_PREVIOUS_BATCHES?' previous/review':' review')+' group(s).');batches.forEach(function(batch,bi){var showArchived=!!ARCHIVED_BATCH_VISIBILITY[batch.batchKey];var archivedCount=(batch.rows||[]).filter(function(r){return r.statusCode==='PROCESSED';}).length;var visibleRows=(batch.rows||[]).filter(function(r){return showArchived||r.statusCode!=='PROCESSED';});var visibleCount=visibleRows.length;var section=document.createElement('section');section.className='batch-card '+(batch.statusClassName||'status-new');var cardHeader=document.createElement('div');cardHeader.className='batch-card-header';var titleWrap=document.createElement('div');var title=document.createElement('div');title.className='batch-title';title.textContent=batch.batchTitle||batch.batchKey||'UNBATCHED';var meta=document.createElement('div');meta.className='batch-meta';meta.textContent='Visible: '+String(visibleCount)+' · Archived: '+String(archivedCount)+' · Total: '+String(batch.ticketCount||0)+' · Invoice Total: '+(batch.invoiceTotalDisplay||'$0.00');titleWrap.appendChild(title);titleWrap.appendChild(meta);var headerActions=document.createElement('div');headerActions.appendChild(createStatusBadge(batch.statusLabel,batch.statusClassName));if(archivedCount){var hb=document.createElement('button');hb.type='button';hb.className='secondary';hb.textContent=showArchived?'Hide Archived':'Show Archived';hb.style.marginLeft='8px';hb.onclick=function(){toggleArchivedBatch(batch.batchKey);};headerActions.appendChild(hb);}if(batch.rows&&batch.rows.length){var sb=document.createElement('button');sb.type='button';sb.className='secondary';sb.textContent='Select Group';sb.style.marginLeft='8px';sb.onclick=function(){selectBatchTickets(bi);};headerActions.appendChild(sb);var ab=document.createElement('button');ab.type='button';ab.className='approve';ab.textContent='Approve Batch';ab.style.marginLeft='8px';ab.onclick=function(){var rowNums=(batch.rows||[]).map(function(r){return r.rowNumber;}).filter(Boolean);approveBatchByKey(batch.batchKey,'',function(){reloadBatches();},rowNums);};headerActions.appendChild(ab);var rb=document.createElement('button');rb.type='button';rb.textContent='Open Batch';rb.style.marginLeft='8px';rb.onclick=function(){SHOULD_SCROLL_ON_DETAIL_LOAD=true;showTicketDetail(bi,0);};headerActions.appendChild(rb);}var headerRight=document.createElement('div');headerRight.className='batch-card-header-right';headerRight.appendChild(headerActions);cardHeader.appendChild(titleWrap);cardHeader.appendChild(headerRight);section.appendChild(cardHeader);var header=document.createElement('div');header.className='batch-header';[['Broker',getDisplayName(BROKER_MAP,batch.broker||'')],['Customer / Job',batch.customerJob||'Missing'],['PO Number',batch.poNumber||'Missing'],['Origin',batch.origin||'Missing'],['Destination',batch.destination||'Missing'],['Rate',batch.rate||'Missing']].forEach(function(item){var w=document.createElement('div');var l=document.createElement('div');l.className='label';l.textContent=item[0];var v=document.createElement('div');v.className='value';v.textContent=item[1];w.appendChild(l);w.appendChild(v);header.appendChild(w);});section.appendChild(header);var table=document.createElement('table');var thead=document.createElement('thead');thead.innerHTML='<tr><th class="select-cell"><input type="checkbox" class="batch-select-all-checkbox" title="Select all visible tickets in this group"></th><th>Status</th><th>Viewed</th><th>Date</th><th>Truck</th><th>Driver</th><th>Material</th><th>Qty</th><th>Rate</th><th>Invoice</th><th class="ticket-number-header action-column">Ticket #</th></tr>';var batchSelectAll=thead.querySelector('.batch-select-all-checkbox');if(batchSelectAll){var selectable=(batch.rows||[]).filter(function(r){return isSelectableTicketForBatch(r)&&(showArchived||r.statusCode!=='PROCESSED');});var selectedCount=selectable.filter(function(r){return !!SELECTED_TICKET_ROWS[String(getTicketSelectionId(r))];}).length;batchSelectAll.checked=selectable.length>0&&selectedCount===selectable.length;batchSelectAll.indeterminate=selectedCount>0&&selectedCount<selectable.length;batchSelectAll.disabled=!selectable.length;batchSelectAll.onclick=function(e){e.stopPropagation();setBatchTicketsSelected(bi,batchSelectAll.checked);};}var tbody=document.createElement('tbody');batch.rows.forEach(function(row,ri){if(row.statusCode==='PROCESSED'&&!showArchived)return;var tr=document.createElement('tr');tr.className='ticket-row '+(row.statusClassName||'status-new');tr.addEventListener('click',function(){SHOULD_SCROLL_ON_DETAIL_LOAD=true;showTicketDetail(bi,ri);});var sel=document.createElement('td');sel.className='select-cell';var cb=document.createElement('input');cb.type='checkbox';cb.className='ticket-select-checkbox';cb.checked=!!SELECTED_TICKET_ROWS[String(getTicketSelectionId(row))];cb.onclick=function(e){e.stopPropagation();toggleTicketSelection(getTicketSelectionId(row),cb.checked);};sel.appendChild(cb);tr.appendChild(sel);var sc=document.createElement('td');sc.appendChild(createStatusBadge(row.statusLabel,row.statusClassName));tr.appendChild(sc);var vc=document.createElement('td');vc.appendChild(createStatusBadge(row.viewedLabel||'Not Viewed',row.viewedClassName||'viewed-no'));tr.appendChild(vc);var ticketNumberCell=document.createElement('td');ticketNumberCell.className='ticket-number-cell';var ticketNumberBadge=document.createElement('span');ticketNumberBadge.className='ticket-number-badge';ticketNumberBadge.textContent=row.ticketNumber||'Missing';ticketNumberCell.appendChild(ticketNumberBadge);tr.appendChild(createTextCell(row.ticketDateDisplay||row.ticketDate||'Missing'));tr.appendChild(createTextCell(getDisplayName(TRUCK_MAP,row.truck||batch.truck||'')));tr.appendChild(createTextCell(getDisplayName(DRIVER_MAP,row.driver||batch.driver||'')));tr.appendChild(createTextCell(row.material||''));tr.appendChild(createTextCell(row.quantity||''));tr.appendChild(createTextCell(row.rate||batch.rate||''));tr.appendChild(createTextCell(row.lineTotalDisplay||row.lineTotal||''));tr.appendChild(ticketNumberCell);tbody.appendChild(tr);});table.appendChild(thead);table.appendChild(tbody);section.appendChild(table);app.appendChild(section);});}
+function markCurrentTicketViewed(row){if(!row||!row.rowNumber)return;if(String(row.viewedInReviewApp||'').toLowerCase()==='yes')return;row.viewedInReviewApp='Yes';row.viewedLabel='Viewed';row.viewedClassName='viewed-yes';google.script.run.withFailureHandler(function(e){console.warn('Diane review app: markTicketViewed failed',e);}).markTicketViewed({rowNumber:row.rowNumber,viewedBy:getReviewer()||getInputValue('detailBatchReviewer')||''});}
+function prefillEmptyFieldsFromOcr(row){if(!row)return;var values={ticketDate:row.ticketDateCandidate,ticketNumber:row.ticketNumberCandidate,quantity:row.quantityCandidate,rate:row.rateCandidate,lineTotal:row.totalCandidate};Object.keys(values).forEach(function(id){var candidate=String(values[id]||'').trim();if(candidate&&!String(getInputValue(id)||'').trim())setInputValue(id,candidate);});var currentDriver=String(getInputValue('driver')||'').trim();var ocrDriver=String(row.driverCandidate||'').trim();if(!currentDriver&&ocrDriver)setInputValue('driver',ocrDriver);}
+function showTicketDetail(bi,ri){var batch=REVIEW_BATCHES[bi];var row=batch.rows[ri];markCurrentTicketViewed(row);CURRENT_BATCH_INDEX=bi;CURRENT_ROW_INDEX=ri;CURRENT_ROW_NUMBER=row.rowNumber;CURRENT_AIRTABLE_VALIDATION_RECORD_ID=row.validationRecordId||'';CURRENT_SCAN_URL=row.sourceFileUrl||'';AUTO_SUGGESTED_DRIVER='';resetScanRotation();deactivateScanWheelZoom();document.getElementById('listView').classList.add('hidden');document.getElementById('detailView').classList.remove('hidden');updateBatchSummary_(batch);document.getElementById('openScanButton').href=row.sourceFileUrl||'#';document.getElementById('scanFrame').src=getDrivePreviewUrl(row.sourceFileUrl);setInputValue('ticketNumber',row.ticketNumber);setInputValue('ticketDate',row.ticketDate);setInputValue('broker',row.broker);setInputValue('poNumber',row.poNumber);setInputValue('workOrder',row.workOrder);setInputValue('customerJob',row.customerJob);setInputValue('truck',row.truck);setInputValue('driver',row.driver);setInputValue('material',row.material);setInputValue('quantity',row.quantity);setInputValue('rate',row.rate);setInputValue('origin',row.origin);setInputValue('destination',row.destination);setInputValue('lineTotal',row.lineTotal);setInputValue('reviewNotes',row.reviewNotes);setInputValue('reviewer',row.reviewer);bindTruckDefaultDriverSuggestion();prefillEmptyFieldsFromOcr(row);applyTruckDefaultDriver();var prominent=document.getElementById('prominentTicketNumber');if(prominent)prominent.textContent=getInputValue('ticketNumber')?'Ticket # '+getInputValue('ticketNumber'):'Ticket # Missing';updateStaticTicketSummary(buildTicketPayload());updateSummary();clearApprovalBlocked();setSaveStatus('No changes saved yet.','');updateNavButtons();updateReturnToDraftButton();if(row.statusCode==='APPROVED')showTicketStaticView();else showTicketEditView();if(RESTORE_SCROLL_Y!==null){restoreScroll();return;}if(SHOULD_SCROLL_ON_DETAIL_LOAD)document.getElementById('detailView').scrollIntoView({behavior:'auto',block:'start'});SHOULD_SCROLL_ON_DETAIL_LOAD=false;}
+function saveCurrentBatchDraft(){var btn=document.getElementById('saveBatchButton');btn.disabled=true;btn.textContent='Saving...';setBatchSaveStatus('Saving batch draft...','');var payload;try{payload=buildBatchPayloadFromDetail();}catch(e){btn.disabled=false;btn.textContent='Save Batch Draft';setBatchSaveStatus(String(e.message||e),'error');return;}google.script.run.withSuccessHandler(function(r){btn.disabled=false;btn.textContent='Save Batch Draft';updateLocalBatchFromPayload(payload);setBatchSaveStatus(r.message||'Batch draft saved.','success');showBatchStaticView();}).withFailureHandler(function(e){btn.disabled=false;btn.textContent='Save Batch Draft';setBatchSaveStatus('Batch save failed: '+String(e&&e.message?e.message:e),'error');}).saveBatchFields(payload);}
+function approveBatchByKey(batchKey,reviewer,onDone,rowNumbers){if(!batchKey){alert('No batch selected.');return;}var rev=String(reviewer||getOverviewReviewer()||'').trim().toLowerCase();if(!rev){rev=String(prompt('Reviewer initials for approval?','ee')||'').trim().toLowerCase();}if(!rev){alert('Reviewer is required.');return;}setOverviewReviewer(rev);var count=(rowNumbers||[]).length;var label=count?('Approve '+count+' selected ticket(s)?'):('Approve every ticket in this batch?');var ok=confirm(label+'\n\nBatch: '+batchKey+'\nReviewer: '+rev);if(!ok)return;setStatus('Approving tickets...');google.script.run.withSuccessHandler(function(r){setStatus(r.message||'Tickets approved.');if(typeof onDone==='function')onDone(r);else reloadBatches();}).withFailureHandler(function(e){setStatus('Batch approval failed.');alert('Batch approval failed: '+String(e&&e.message?e.message:e));}).approveBatch({batchKey:batchKey,reviewer:rev,rowNumbers:rowNumbers||[]});}
+function approveCurrentBatch(){var batch=getCurrentBatch();if(!batch){alert('No active batch selected.');return;}var reviewer=getInputValue('detailBatchReviewer')||getReviewer();approveBatchByKey(batch.batchKey,reviewer,function(r){setBatchSaveStatus(r.message||'Batch approved.','success');showListView();});}
+function applyCurrentBatchFields(){var eb=document.getElementById('applyBatchButton');var sb=document.getElementById('applyBatchButtonStatic');function setApply(disabled,text){if(eb){eb.disabled=disabled;eb.textContent=text;}if(sb){sb.disabled=disabled;sb.textContent=text;}}setApply(true,'Applying...');setBatchSaveStatus('Applying batch fields to ticket rows...','');var payload;try{if(document.getElementById('batchEditView').classList.contains('hidden')){var batch=getCurrentBatch();payload={batchKey:batch.batchKey,broker:batch.broker,customerJob:batch.customerJob,poNumber:batch.poNumber,workOrder:batch.workOrder,origin:batch.origin,destination:batch.destination,truck:batch.truck,driver:batch.driver,rate:batch.rate,batchNotes:batch.batchNotes,reviewer:batch.reviewer,batchStatus:'Draft',applyToTickets:'Yes',formAction:'Apply Batch Fields to Tickets'};}else{payload=buildBatchPayloadFromDetail();payload.applyToTickets='Yes';payload.formAction='Apply Batch Fields to Tickets';}}catch(e){setApply(false,'Apply Batch Fields to Tickets');setBatchSaveStatus(String(e.message||e),'error');return;}google.script.run.withSuccessHandler(function(r){setApply(false,'Apply Batch Fields to Tickets');updateLocalBatchFromPayload(payload);applyBatchPayloadToCurrentBatchRows(payload);setBatchSaveStatus(r.message||'Batch fields applied.','success');showBatchStaticView();}).withFailureHandler(function(e){setApply(false,'Apply Batch Fields to Tickets');setBatchSaveStatus('Apply failed: '+String(e&&e.message?e.message:e),'error');}).applyBatchFieldsToTickets(payload);}
+function saveCurrentTicket(){var airtable=isAirtableReviewSource(REVIEW_QUEUE_SOURCE);if(airtable?!CURRENT_AIRTABLE_VALIDATION_RECORD_ID:!CURRENT_ROW_NUMBER){setSaveStatus('No active ticket selected.','error');return;}clearApprovalBlocked();var btn=document.getElementById('saveButton');btn.disabled=true;btn.textContent='Saving...';setSaveStatus('Saving draft...','');var payload=buildTicketPayload();var runner=google.script.run.withSuccessHandler(function(r){btn.disabled=false;btn.textContent='Save as Draft';setSaveStatus(r.message||'Draft saved.','success');updateLocalRowFromPayload(payload);updateReturnToDraftButton();showTicketStaticView();}).withFailureHandler(function(e){btn.disabled=false;btn.textContent='Save as Draft';setSaveStatus('Draft save failed: '+String(e&&e.message?e.message:e),'error');});if(airtable)runner.saveAirtableTicketFields(payload);else runner.saveTicketFields(payload);}
+function approveCurrentTicket(){if(!CURRENT_ROW_NUMBER){setSaveStatus('No active ticket selected.','error');return;}clearApprovalBlocked();var problems=validateApprovalFields();if(problems.length){showTicketEditView();showApprovalBlocked(problems);return;}var ab=document.getElementById('approveButton');var abs=document.getElementById('approveButtonStatic');var sb=document.getElementById('saveButton');function setApprove(disabled,text){if(ab){ab.disabled=disabled;ab.textContent=text;}if(abs){abs.disabled=disabled;abs.textContent=text;}if(sb)sb.disabled=disabled;}setApprove(true,'Saving and approving...');setSaveStatus('Saving corrections and approving ticket...','');var payload=buildTicketPayload();google.script.run.withSuccessHandler(function(r){setApprove(false,'Save and Approve');clearApprovalBlocked();if(CURRENT_BATCH_INDEX!==null&&CURRENT_ROW_INDEX!==null&&REVIEW_BATCHES[CURRENT_BATCH_INDEX]){var batch=REVIEW_BATCHES[CURRENT_BATCH_INDEX];var row=batch.rows[CURRENT_ROW_INDEX];row.statusCode='APPROVED';row.statusLabel='Approved';row.statusClassName='status-approved';row.buttonLabel='View/Edit';row.buttonClassName='approve';row.reviewStatus='Reviewed';row.readyForClean='Yes';var next=findNextReviewIndex(batch,CURRENT_ROW_INDEX);if(next===-1){showListView();return;}preserveScroll();SHOULD_SCROLL_ON_DETAIL_LOAD=false;showTicketDetail(CURRENT_BATCH_INDEX,next);setSaveStatus(r.message||'Saved and approved. Moved to next ticket.','success');return;}setSaveStatus(r.message||'Saved and approved.','success');}).withFailureHandler(function(e){setApprove(false,'Save and Approve');var msg=String(e&&e.message?e.message:e);setApprovalAlert(msg);setSaveStatus('No changes saved.','error');}).approveTicket(payload);}
+function returnCurrentTicketToDraft(){if(!CURRENT_ROW_NUMBER){setSaveStatus('No active ticket selected.','error');return;}var btn=document.getElementById('returnToDraftButton');var sbtn=document.getElementById('returnToDraftButtonStatic');function setReturn(disabled,text){if(btn){btn.disabled=disabled;btn.textContent=text;}if(sbtn){sbtn.disabled=disabled;sbtn.textContent=text;}}setReturn(true,'Returning...');setSaveStatus('Returning ticket to draft...','');google.script.run.withSuccessHandler(function(r){setReturn(false,'Return to Draft');var row=getCurrentRow();if(row){row.statusCode='DRAFT';row.statusLabel='Draft';row.statusClassName='status-draft';row.buttonLabel='Review';row.buttonClassName='warning';row.reviewStatus='Draft';row.readyForClean='No';}updateSummary();updateReturnToDraftButton();setSaveStatus(r.message||'Returned to draft.','success');showTicketEditView();}).withFailureHandler(function(e){setReturn(false,'Return to Draft');setSaveStatus('Return to draft failed: '+String(e&&e.message?e.message:e),'error');}).returnTicketToDraft({rowNumber:CURRENT_ROW_NUMBER});}
+function reloadBatches(){
+SELECTED_TICKET_ROWS={};
+updateSelectionToolbar();
+setStatus('Loading review batches...');
+
+
+
+
+
+
+
+
+var app = document.getElementById('app');
+if (!app) {
+ alert('Debug: missing #app element before loading review batches.');
+ return;
+}
+
+
+
+
+
+
+
+
+app.className = 'loading';
+app.textContent = 'Loading review batches...';
+
+
+
+
+
+
+
+
+console.log('Diane review app: reloadBatches started');
+
+
+
+
+
+
+
+
+if (typeof google === 'undefined') {
+ renderError({
+   message: 'google object is undefined. This page is not running inside Apps Script web app context.'
+ });
+ return;
+}
+
+
+
+
+
+
+
+
+if (!google.script || !google.script.run) {
+ renderError({
+   message: 'google.script.run is unavailable. Apps Script client bridge did not load.'
+ });
+ return;
+}
+
+
+
+
+
+
+
+
+console.log('Diane review app: calling review queue loader', { source: REVIEW_QUEUE_SOURCE, includePrevious: SHOW_PREVIOUS_BATCHES });
+
+
+
+
+
+
+
+
+if (isAirtableReviewSource(REVIEW_QUEUE_SOURCE)) {
+ google.script.run
+ .withSuccessHandler(function(batches){
+   console.log('Diane review app: getPendingReviewBatches success', batches);
+   try {
+     renderBatches(batches);
+   } catch (err) {
+     console.error('Diane review app: renderBatches crashed', err);
+     renderError({
+       message: 'renderBatches crashed after data loaded: ' +
+         (err && err.message ? err.message : String(err))
+     });
+   }
+ })
+ .withFailureHandler(function(error){
+   console.error('Diane review app: getPendingReviewBatches failed', error);
+   renderError(error);
+ })
+ .getPendingReviewBatchesFromAirtable({ includePrevious: SHOW_PREVIOUS_BATCHES });
+} else {
+ google.script.run
+ .withSuccessHandler(function(batches){
+   console.log('Diane review app: getPendingReviewBatches success', batches);
+   try {
+     renderBatches(batches);
+   } catch (err) {
+     console.error('Diane review app: renderBatches crashed', err);
+     renderError({
+       message: 'renderBatches crashed after data loaded: ' +
+         (err && err.message ? err.message : String(err))
+     });
+   }
+ })
+ .withFailureHandler(function(error){
+   console.error('Diane review app: getPendingReviewBatches failed', error);
+   renderError(error);
+ })
+ .getPendingReviewBatches({ includePrevious: SHOW_PREVIOUS_BATCHES });
+}
+
+window.setTimeout(function(){
+ var currentApp = document.getElementById('app');
+ if (currentApp && currentApp.className === 'loading') {
+   setStatus('Still loading review queue after 10 seconds. Check Apps Script Executions and browser console.');
+   console.warn('Diane review app: still loading after 10 seconds');
+ }
+}, 10000);
+
+}
+function showListView(){CURRENT_SCAN_URL='';CURRENT_ROW_NUMBER=null;CURRENT_BATCH_INDEX=null;CURRENT_ROW_INDEX=null;RESTORE_SCROLL_Y=null;BATCH_EDIT_MODE=false;TICKET_EDIT_MODE=true;document.getElementById('scanFrame').src='';document.getElementById('detailView').classList.add('hidden');document.getElementById('listView').classList.remove('hidden');reloadBatches();window.scrollTo(0,0);}
+function renderError(error){var app=document.getElementById('app');app.className='error';app.innerHTML='<strong>Something broke.</strong><br>'+String(error&&error.message?error.message:error);setStatus('Error loading review queue.');}
+reloadBatches();
+
+
+var CURRENT_SCAN_ROTATION=0;
+var SCAN_WHEEL_ZOOM_ACTIVE=false;
+function activateScanWheelZoom(event){
+ if(event)event.stopPropagation();
+ SCAN_WHEEL_ZOOM_ACTIVE=true;
+ var overlay=document.getElementById('scanPreviewOverlay');
+ if(overlay)overlay.classList.add('active');
+}
+function deactivateScanWheelZoom(){
+ SCAN_WHEEL_ZOOM_ACTIVE=false;
+ var overlay=document.getElementById('scanPreviewOverlay');
+ if(overlay)overlay.classList.remove('active');
+}
+document.addEventListener('click',function(event){
+ var wrap=document.getElementById('scanPreviewWrap');
+ if(wrap&&!wrap.contains(event.target))deactivateScanWheelZoom();
+});
+function normalizeScanRotation_(deg){var n=deg%360;if(n<0)n+=360;return n;}
+function applyScanRotation_(){var frame=document.getElementById('scanFrame');var label=document.getElementById('scanRotationLabel');if(!frame)return;var deg=normalizeScanRotation_(CURRENT_SCAN_ROTATION);var scale=(deg===90||deg===270)?0.72:1;frame.style.transform='rotate('+deg+'deg) scale('+scale+')';frame.style.transformOrigin='center center';if(label)label.textContent=deg+'°';}
+function rotateScanPreview(delta){CURRENT_SCAN_ROTATION=normalizeScanRotation_(CURRENT_SCAN_ROTATION+delta);applyScanRotation_();}
+function resetScanRotation(){CURRENT_SCAN_ROTATION=0;applyScanRotation_();}
+function updateBatchSummary_(batch){
+ if(!batch)return;
+ setTextValue('summaryTicketCount',batch.ticketCount||0);
+ setTextValue('summaryBatchStatus',batch.statusLabel||batch.statusCode||'');
+}
+
+
+
+
+
+
+
+function getCurrentBatchValidationRecordIds_(){
+ var batch=getCurrentBatch();
+ return (batch&&batch.rows||[]).map(function(row){return row.validationRecordId;}).filter(Boolean);
+}
+
+function applySharedFieldsToAllTickets(){
+ var batch=getCurrentBatch();
+ var ids=getCurrentBatchValidationRecordIds_();
+ if(!isAirtableReviewSource(REVIEW_QUEUE_SOURCE)){setSaveStatus('Shared-field copy is available only for Airtable records.','error');return;}
+ if(!batch||!batch.batchRecordId||!ids.length){setSaveStatus('No tickets are available in this batch.','error');return;}
+ if(!confirm('Apply the current shared fields to all tickets in this batch?'))return;
+ var payload={source:REVIEW_QUEUE_SOURCE,targetBatchRecordId:batch.batchRecordId,validationRecordIds:ids,broker:getInputValue('broker'),customerJob:getInputValue('customerJob'),poNumber:getInputValue('poNumber'),workOrder:getInputValue('workOrder'),origin:getInputValue('origin'),destination:getInputValue('destination'),truck:getInputValue('truck'),driver:getInputValue('driver'),material:getInputValue('material'),rate:getInputValue('rate')};
+ setSaveStatus('Applying shared fields to all tickets...','');
+ google.script.run.withSuccessHandler(function(r){setSaveStatus(r.message||'Shared fields applied.','success');reloadBatches();}).withFailureHandler(function(e){setSaveStatus('Shared-field copy failed: '+String(e&&e.message?e.message:e),'error');}).applySharedFieldsToAllTickets(payload);
+}
+
+function removeCurrentTicketFromBatch(){
+ var row=getCurrentRow();var batch=getCurrentBatch();
+ if(!row||!row.validationRecordId||!batch||!batch.batchRecordId){setSaveStatus('No active batch ticket selected.','error');return;}
+ if(!confirm('Remove this ticket from the batch?'))return;
+ google.script.run.withSuccessHandler(function(r){setStatus(r.message||'Ticket removed from batch. Reloading...');reloadBatches();}).withFailureHandler(function(e){setSaveStatus('Remove from batch failed: '+String(e&&e.message?e.message:e),'error');}).removeTicketsFromBatch({source:REVIEW_QUEUE_SOURCE,validationRecordIds:[row.validationRecordId],targetBatchRecordId:batch.batchRecordId});
+}
+
+
+
+function removeSelectedTicketsFromBatch(){
+ var ids=getSelectedTicketIds();if(!ids.length){setStatus('Select at least 1 ticket first.');return;}
+ var targetBatchRecordId='';var batchCount=0;
+ (REVIEW_BATCHES||[]).forEach(function(batch){var has= (batch.rows||[]).some(function(row){return ids.indexOf(String(getTicketSelectionId(row)))>=0;});if(has){batchCount++;targetBatchRecordId=batch.batchRecordId||'';}});
+ if(batchCount!==1||!targetBatchRecordId){setStatus('Select tickets from one batch only.');return;}
+ if(!confirm('Remove '+ids.length+' selected ticket(s) from this batch?'))return;
+ google.script.run.withSuccessHandler(function(r){clearSelectedTickets();setStatus(r.message||'Tickets removed from batch. Reloading...');reloadBatches();}).withFailureHandler(function(e){setStatus('Remove from batch failed: '+String(e&&e.message?e.message:e));updateSelectionToolbar();}).removeTicketsFromBatch({source:REVIEW_QUEUE_SOURCE,validationRecordIds:ids,targetBatchRecordId:targetBatchRecordId});
+}
+
+
+</script>
