@@ -62,15 +62,6 @@
 
 
 
-<div id="ticketSummary" class="ticket-summary">
- <div class="summary-grid">
-   <div class="summary-item"><strong>Status:</strong> <span id="summaryStatus"></span></div>
-   <div class="summary-item"><strong>Pay:</strong> <span id="summaryDriverPay">Missing</span></div>
-   <div class="summary-item"><strong>Ticket Count:</strong> <span id="summaryTicketCount"></span></div>
-   <div class="summary-save"><button id="saveButton" type="button" onclick="saveCurrentTicket()">Save as Draft</button></div>
- </div>
-</div>
-
 
 
 
@@ -120,6 +111,7 @@
      <button class="secondary" type="button" onclick="showListView()">Back to Overview</button>
      <button class="warning" type="button" onclick="applySharedFieldsToAllTickets()">Apply Shared Fields to All Tickets</button>
      <button class="secondary" type="button" onclick="removeCurrentTicketFromBatch()">Remove Ticket from Batch</button>
+     <div class="ticket-toolbar-status"><strong>Status:</strong> <span id="summaryStatus"></span></div>
    </div>
    <div id="ticketStaticView" class="hidden">
      <div class="batch-static-grid">
@@ -199,6 +191,7 @@
      <div id="approvalAlert" class="approval-alert"></div>
      <div id="saveStatus" class="save-status">No changes saved yet.</div>
      <div class="form-toolbar">
+       <button id="saveButton" type="button" onclick="saveCurrentTicket()">Save as Draft</button>
        <button id="approveButton" class="approve" type="button" onclick="approveCurrentTicket()">Save and Approve</button>
        <button id="returnToDraftButton" class="warning hidden" type="button" onclick="returnCurrentTicketToDraft()">Return to Draft</button>
      </div>
