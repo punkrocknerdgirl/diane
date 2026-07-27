@@ -172,7 +172,10 @@ function mapAirtableValidation_(record, ticketById, parserById, ocrById, parserB
   const ticketDate = final('Final Ticket Date') || (ticket && airtableField_(ticket, 'Ticket Date')) || '';
   const rate = final('Final Rate') || (ticket && airtableField_(ticket, 'Rate')) || '';
   const quantity = final('Final Quantity') || (ticket && airtableField_(ticket, 'Quantity')) || '';
-  const lineTotal = final('Final Total') || final('Line Total') || (ticket && airtableField_(ticket, 'Line Total')) || getReviewLineTotal_('', quantity, rate);
+  const savedFinalTotal = airtableField_(record, 'Final Total');
+  const lineTotal = savedFinalTotal !== null && savedFinalTotal !== undefined && savedFinalTotal !== ''
+    ? savedFinalTotal
+    : final('Line Total') || (ticket && airtableField_(ticket, 'Line Total')) || getReviewLineTotal_('', quantity, rate);
   const rowObj = {
     rowNumber: null,
     validationRecordId: record.id,
@@ -192,7 +195,9 @@ function mapAirtableValidation_(record, ticketById, parserById, ocrById, parserB
     material: airtableText_(final('Final Material')), quantity: airtableText_(quantity), rate: airtableText_(rate),
     origin: airtableText_(final('Final Origin')), destination: airtableText_(final('Final Destination')),
     lineTotal: airtableText_(lineTotal), reviewNotes: airtableText_(final('Reviewer Notes')),
-    reviewer: airtableText_(airtableField_(record, 'Reviewer')), reviewBatchKey: '',
+    reviewer: (function(value) {
+      return value && typeof value === 'object' && value.id ? value.id : '';
+    })(airtableField_(record, 'Reviewer')), reviewBatchKey: '',
     reviewBatchRecordIds: airtableLinkIds_(airtableField_(record, 'Review Batches')),
     ocrRawText: ocr ? airtableText_(airtableField_(ocr, 'Raw OCR Text')) : '',
     ocrTicketDate: ocr ? (airtableText_(airtableField_(ocr, 'Extracted Ticket Date')) || ocrDateCandidate_(airtableField_(ocr, 'Raw OCR Text'))) : '',
@@ -527,7 +532,14 @@ function saveAirtableTicketFields(payload) {
   fields[f.finalRate] = number(payload.rate, 'Final Rate');
   fields[f.finalTotal] = number(payload.lineTotal, 'Final Total');
   fields[f.reviewerNotes] = norm_(payload.reviewNotes);
-  fields[f.reviewer] = norm_(payload.reviewer);
+  const reviewer = norm_(payload.reviewer);
+  if (reviewer === '') {
+    fields[f.reviewer] = null;
+  } else if (reviewer === 'usroVCuQ6vu5oCeXW') {
+    fields[f.reviewer] = {id: 'usroVCuQ6vu5oCeXW'};
+  } else {
+    throw new Error('Unknown Reviewer collaborator.');
+  }
   airtableUpdateRecords_(DIANE_AIRTABLE_TABLES.validationQueue, [{id: id, fields: fields}]);
   return {ok: true, validationRecordId: id, message: 'Draft saved to Airtable.'};
 }
