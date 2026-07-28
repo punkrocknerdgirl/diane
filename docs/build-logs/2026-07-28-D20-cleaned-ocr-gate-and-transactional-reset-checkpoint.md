@@ -4,13 +4,13 @@
 
 ## Purpose
 
-Document the completed Make OCR routing correction, the verified Airtable transactional reset, and the exact starting point for a fresh July 1-forward production run.
+Document the completed Make OCR routing correction, the verified Airtable transactional reset, the successful fresh July 1-forward import, and the current controlled testing state of the ticket-cleaning scenario.
 
 ## Current verified state
 
-Diane 2.0 is ready to begin a fresh controlled pipeline run from an Airtable Import Run record.
+Diane 2.0 now contains a fresh July 1-forward production import and is partway through controlled image-cleaning tests.
 
-The intended flow is now:
+The intended flow remains:
 
 1. Create an Import Run with a July 1, 2026 pull-from date.
 2. Run the Motive import into Airtable Tickets.
@@ -24,7 +24,7 @@ The intended flow is now:
 
 Airtable remains the operational source of truth. Google Sheets is not part of the final architecture.
 
-## Work completed
+## Work completed before the fresh import
 
 ### Scenario 03 cleaned-file extractor routing
 
@@ -157,6 +157,152 @@ All deletion calls reported success.
 
 A final read-only check confirmed Review Batches contained 0 records after deletion.
 
+## Fresh July import completed
+
+A new Airtable Import Run was created and verified:
+
+- Record ID: `rectCOPK8zNQEsFmi`
+- Import Run Key: `MOTIVE_LIVE_FRESH_20260701_20260728`
+- Source System: `Motive`
+- Import Disposition: `Live Work`
+- Run Status at creation: `Ready`
+- Pull From: July 1, 2026 at 12:00 AM America/Chicago
+
+Scenario 01 was renamed:
+
+`A - Get Motive Tickets`
+
+Preflight changes and verification:
+
+- Search Import Runs [26] now filters for `Run Status = Ready` instead of `Planned`.
+- Sort direction was changed to ascending.
+- Limit remains 1.
+- Motive `created_after` is mapped to `[26] Pull From`.
+- Tools [32] retains `run_start_time = now`.
+- Airtable [31] updates the same Import Run via `[26] ID`.
+- Airtable [31] writes `Pulled At = [32] run_start_time`.
+- Airtable [31] now writes `Run Status = Completed`.
+
+The first live run partially completed, then Google Drive Upload [8] timed out on operation 62.
+
+Verified after the partial run:
+
+- 61 Tickets had been created and linked.
+- The Import Run remained `Ready`.
+- Pulled At remained blank.
+- The failed operation did not create Ticket 62.
+
+The scenario was rerun without changing the pipeline. Duplicate protection skipped the 61 existing tickets and created the remaining 22.
+
+Final verified import state:
+
+- Motive documents returned: 32
+- Attachment checks: 83
+- Existing Tickets skipped on rerun: 61
+- New Tickets created on rerun: 22
+- Total Tickets: 83
+- Import Run status: `Completed`
+- Pulled At populated: July 28, 2026 at 11:25:49 AM America/Chicago
+- Pull From remained July 1, 2026
+- Linked Tickets: 83
+- Tickets table total: 83
+- All 83 Tickets are linked to the fresh Import Run.
+- All 83 Tickets are in `Intake`.
+- All 83 have Import Key, Source File ID, and Source File URL.
+- Import Run `Ticket Count` remains blank; the linked Tickets and table count independently verify 83.
+
+The Google Drive upload timeout appears to have been transient because the same missing work completed successfully on rerun.
+
+## Scenario naming cleanup
+
+Make had been reordering scenarios that began with numbers. The scenarios were renamed alphabetically:
+
+- `A - Get Motive Tickets`
+- `B - Clean Ticket Images`
+- `C - OCR Workflow`
+- `D - Document AI Extractor`
+- `E - Build Review Batches`
+
+All visible Make schedules remained disabled.
+
+## Ticket-cleaning scenario current state
+
+The active cleaning scenario is:
+
+`B - Clean Ticket Images`
+
+The Airtable Search Records [11] filter was corrected from the backward gate:
+
+```text
+AND(
+  {Clean Status} = "Needs Clean",
+  {Send Cleaned File to OCR} = 1
+)
+```
+
+to:
+
+```text
+AND(
+  {Ticket Status} = "Intake",
+  NOT({Cleaned File ID}),
+  OR(
+    {Clean Status} = "",
+    {Clean Status} = "Needs Clean"
+  )
+)
+```
+
+This correctly selects fresh Intake tickets that do not yet have a cleaned file. `Send Cleaned File to OCR` is set only after cleaning succeeds.
+
+The final Airtable success update [21] was inspected and verified to write:
+
+- Record ID = `[11] ID`
+- Clean Status = `Cleaned`
+- Send Cleaned File to OCR = `Yes`
+- Cleaned File URL = `[9] Web View Link`
+- Cleaned File ID = `[9] File ID`
+- Cleaning Error = blank
+- Cleaned At = `now`
+- Smart links = `No`
+
+Controlled tests completed:
+
+1. Limit 1 completed successfully and wrote the full cleaned-file success state.
+2. Limit 5 completed successfully for all five operations.
+3. A larger test with a 5-second fixed sleep completed two operations, then the third reached HTTP [4] before CloudConvert Get a Job [17] had produced the export URL.
+4. Increasing the fixed sleep to 12 seconds did not eliminate the failure; a later job still returned an empty `[17] URL`.
+
+The failure is specifically:
+
+```text
+HTTP Download a file [4]
+Required URL uses 17. URL, but 17. URL is empty.
+```
+
+This is not evidence of a bad source file. It is a timing race: CloudConvert job completion time varies, especially after the scenario has been processing for a while.
+
+### Fixed-sleep decision
+
+A long fixed sleep is rejected as the final design because it penalizes every fast file and still cannot guarantee that every slower job is complete.
+
+Agreed architectural direction:
+
+1. Use a short initial sleep, approximately 3 to 5 seconds.
+2. Check CloudConvert job status.
+3. If the export URL exists, continue immediately.
+4. If the export URL is empty, wait briefly and retry the status check.
+5. Cap retry attempts.
+6. If the cap is reached, write a real Cleaning Error instead of crashing or silently ignoring the ticket.
+
+This is adaptive polling, not a larger fixed delay.
+
+### Unused modules
+
+- Google Sheets [1] is an unconnected legacy module from the old Sheets architecture and can be removed.
+- CloudConvert Get a Task [10] was inspected. It has no Task ID mapped and is unused. It can be removed.
+- No adaptive polling route has been built yet.
+
 ## What was not changed
 
 No configuration or reference data was deleted or modified, including:
@@ -177,9 +323,11 @@ No configuration or reference data was deleted or modified, including:
 Also unchanged:
 
 - Make schedules remain disabled.
-- No full Make scenario was run after the OCR gate change.
+- Scenario C OCR Workflow has not been run against the fresh cleaned records in this checkpoint.
 - No Apps Script source, deployment, or version was changed.
 - No Google Sheets architecture was restored.
+- No error handler, fallback URL, or ignore-error path was added to hide unfinished CloudConvert jobs.
+- No adaptive retry loop was implemented yet.
 
 ## Decisions and guardrails
 
@@ -193,19 +341,25 @@ Also unchanged:
 - Use controlled tests before expanding scope.
 - Do not claim a deployment, commit, test, scenario run, or live-data change unless verified.
 - `Wipe the base` means transactional or operational records only. It never means configuration tables, schema, fields, views, formulas, interfaces, or automations.
+- Do not solve the CloudConvert race with an ever-longer fixed sleep.
+- Do not add a fake fallback URL or ignore-error handler that conceals an unfinished job.
 - Later, after the cleaned-image pipeline is working, map each quarry ticket layout for quarry-specific parsing improvements.
 
 ## Exact next step
 
-Create a new Airtable Import Run record for the fresh July 1-forward run before running Scenario 01.
+Design the smallest safe adaptive polling route for `B - Clean Ticket Images` around the existing:
 
-The new chat should first inspect the current Import Runs field requirements and propose the exact values for the new record, including:
+```text
+Tools Sleep [19] -> CloudConvert Get a Job [17] -> HTTP Download a file [4]
+```
 
-- Import Run Key
-- Source System
-- Import Disposition
-- Run Status
-- Pull From = July 1, 2026
-- Notes, if useful
+The first action should be read-only inspection of the current route and Make's available routing/repeater controls. Determine the smallest implementation that:
 
-Do not run Scenario 01 until the Import Run record has been created and verified.
+- starts with a short sleep
+- retries only when `[17] URL` is empty
+- exits immediately when the URL exists
+- prevents duplicate downstream bundles
+- caps retry attempts
+- writes Cleaning Error when the retry cap is reached
+
+Do not run more tickets until the retry design is shown exactly and approved.
