@@ -130,3 +130,22 @@ All relevant scenarios are manual. Nothing is scheduled.
 Before running Scenario A, inspect the current Scenario A cursor mechanism and identify the exact live value or record that must be reset so the Motive import window is `2026-07-01` through `2026-08-01`.
 
 Do not change the cursor until the exact proposed reset action is shown and approved. After approval, reset only the cursor value, run Scenario A manually, and verify the newly created Import Run and Ticket counts by Airtable readback before proceeding to Scenario B or any later stage.
+
+## 2026-08-01 Scenario A production run note
+
+Scenario A — Get Motive Tickets required two manual runs. The scenario limit was set to `75`, but the completed import produced `83` Airtable Ticket records linked to the production Import Run.
+
+Verified Airtable state after the run:
+
+- Import Run key: `MOTIVE_LIVE_FRESH_20260701_20260801`
+- Import Run record: `reckRkbjbtpmnHahi`
+- Run Status: `Completed`
+- Pull From: `2026-07-01T05:00:00.000Z`
+- Pulled At: `2026-08-01T17:03:52.533Z`
+- Linked Tickets: `83`
+- OCR Runs: `0`
+- OCR Outputs: `0`
+- Parser Outputs: `0`
+- Validation Queue: `0`
+
+Production decision: reset the Scenario A limit from `75` to `100` before future production imports. This note records the user-reported Make configuration change; the limit change itself was not independently inspected through the connected tools in this chat.
