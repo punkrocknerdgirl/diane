@@ -655,7 +655,6 @@ function addSelectedTicketsToExistingBatchAirtable_(payload) {
     const ids = manualBatchIds_(payload, 1); const target = norm_(payload.targetBatchRecordId);
     if (!airtableRecordId_(target)) throw new Error('A valid target Airtable Review Batch record ID is required.');
     const batch = airtableGetRecord_(DIANE_AIRTABLE_TABLES.reviewBatches, target); const key = airtableText_(airtableFieldById_(batch, DIANE_AIRTABLE_FIELD_IDS.reviewBatches.batchKey));
-    if (key.indexOf('MANUAL_') !== 0) throw new Error('Target Review Batch is not a manual batch.');
     const rows = validateManualBatchRows_(ids, target); const toUpdate = rows.filter(function(item) { return item.linkedBatchIds.indexOf(target) < 0; }).map(function(item) { return {id: item.id, fields: {[DIANE_AIRTABLE_FIELD_IDS.validationQueue.reviewBatches]: [target], [DIANE_AIRTABLE_FIELD_IDS.validationQueue.assignmentSource]: 'Manual', [DIANE_AIRTABLE_FIELD_IDS.validationQueue.batchLock]: true}}; });
     if (toUpdate.length) airtableUpdateRecords_(DIANE_AIRTABLE_TABLES.validationQueue, toUpdate); verifyManualBatchLinks_(ids, target);
     const result = {ok: true, batchRecordId: target, batchKey: key, linkedValidationRecordIds: ids, message: 'Added ' + ids.length + ' ticket(s) to the manual batch.'}; cacheManualBatchResult_(requestId, result); return result;
