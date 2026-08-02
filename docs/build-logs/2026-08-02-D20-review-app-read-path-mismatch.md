@@ -1,10 +1,10 @@
-# Diane 2.0 Checkpoint: Scenario E Review-App Read-Path Mismatch
+# Diane 2.0 Checkpoint: Review-App Read Path and Weekly Batch Rollup
 
 **Date:** 2026-08-02
 
 ## Purpose
 
-Capture the verified state after Scenario D completed for the full live batch, Scenario E successfully created and linked Review Batches, and the remaining issue was isolated to the deployed review application's overview read/display path.
+Capture the verified state after Scenario D completed for the full live batch, Scenario E successfully created and linked Review Batches, the review-app overview mismatch was diagnosed through the deployed Apps Script read path, and a weekly Monday-through-Sunday batch rollup was defined and inventoried.
 
 ## Current verified live state
 
@@ -16,36 +16,31 @@ Capture the verified state after Scenario D completed for the full live batch, S
 - Pull From: 2026-07-01 12:00 AM Central
 - Linked live Tickets: 83
 
-### Scenario D cleaning verification
+### Completed pipeline state
 
-Airtable was checked directly before moving into Scenario E.
+- Scenario A completed with 83 live Tickets.
+- Scenario B completed with all 83 cleaned.
+- Scenario C completed with 83 OCR Runs and 83 OCR Outputs.
+- Scenario D completed with 83 Validation Queue records.
+- Scenario E remains intentionally limited to one-record execution scope, but three Review Batch records were created and linked during controlled testing.
 
-All 83 linked Tickets have:
+### Existing persisted Review Batch links
 
-- `Clean Status = Cleaned`
-- `Send Cleaned File to OCR = checked`
-- `Cleaned File URL` populated
-- `Cleaned File ID` populated
-- `Cleaned At` populated
-- no `Cleaning Error`
+- Review Batch `recKXsjpDWNgaOXJP` links to Validation Queue record `rec5Gj7ZDdG9pMy4S`.
+- Review Batch `rec3i6FRsC4giJmBm` links to Validation Queue record `rec7CnGt1zjRWGIN5`.
+- Review Batch `recQwB4gf68jpZYfn` links to Validation Queue record `recyUCQOIrwfrfKbV`.
 
-Scenario D is complete for the batch.
+For all three pairs:
 
-## Scenario E work completed
+- Review Batch status is `Draft`.
+- the reciprocal Validation Queue `Review Batches` link is populated.
+- Validation Queue `Review Status` is `Pending Review`.
 
-### Hardcoded one-record test value removed
+## Scenario E corrections already verified
 
-Module `[2]` previously filtered on a specific hardcoded Validation ID:
+### Hardcoded one-record Validation ID removed
 
-```text
-VAL_INTAKE_MOTIVE_1034044815_1034044815
-```
-
-That record no longer matched the full eligibility filter, so module `[2]` returned zero bundles and downstream module `[3]` received an empty linked Ticket value.
-
-The hardcoded Validation ID condition was removed. The one-record safety scope remains through `Limit = 1`.
-
-Current module `[2]` formula:
+Module `[2]` now uses:
 
 ```text
 AND(
@@ -54,15 +49,9 @@ AND(
 )
 ```
 
+The one-record safety scope remains through `Limit = 1`.
+
 ### Review Batches table ID corrected
-
-The existing-batch PATCH path previously used a transposed Review Batches table ID.
-
-Wrong:
-
-```text
-tbl37gqQqfH1yd8Ww
-```
 
 Correct live Review Batches table ID:
 
@@ -70,96 +59,216 @@ Correct live Review Batches table ID:
 tbl37qgQqfH1yd8Ww
 ```
 
-The module `[37]` URL prefix was corrected to:
+Module `[37]` URL prefix:
 
 ```text
 /v0/appMWvtLU0hMBqjLC/tbl37qgQqfH1yd8Ww/
 ```
 
-### Existing-batch guard behavior verified
+### Existing Review Batch guard added and verified
 
-The existing-batch route was inspected during testing.
+The `Existing Review Batch Found` guard is between module `[27]` and modules `[36]/[37]` and requires `27.body.records[]` length greater than zero.
 
-When its lookup returned no existing Review Batch, the route did not have a Review Batch record ID to append to the PATCH URL. The empty lookup prevented a valid PATCH. This behavior is now understood as the intended guard condition, not evidence that links were lost.
+Verified behavior:
 
-No fallback record ID was added. No `ifempty()` workaround was used to conceal a missing lookup result.
+- when module `[27]` returned `records: []`, modules `[36]` and `[37]` did not run.
+- module `[29]` created a Draft Review Batch instead.
+- an empty existing-batch lookup can no longer fall through to an unsafe PATCH.
 
-## Verified Airtable state after Scenario E
+## Deployed review-app investigation
 
-The live Airtable state is correct.
+### Live deployment
 
-Review Batch links:
+- Live URL: `https://script.google.com/macros/s/AKfycbzzjkCqwsiCO7vahT1BJn6S4fArwA5dTtsoVEmEz9c05i8P9RTprUOtZ0OKvp2prfc/exec`
+- Deployment ID: `AKfycbzzjkCqwsiCO7vahT1BJn6S4fArwA5dTtsoVEmEz9c05i8P9RTprUOtZ0OKvp2prfc`
+- Apps Script project ID: `1kX8RuUiYcKmXExMDg4zhOm-E-rDHMw08JPqegWiBB36sUN0XZSnsJbAZ`
+- Deployed version: `96`
+- Version description: `Fix ticket detail layout and restore refresh state`
+- Version created: 2026-07-26 11:43 PM
 
-- Review Batch `recKXsjpDWNgaOXJP` links to Validation Queue record `rec5Gj7ZDdG9pMy4S`
-- Review Batch `rec3i6FRsC4giJmBm` links to Validation Queue record `rec7CnGt1zjRWGIN5`
-- Review Batch `recQwB4gf68jpZYfn` links to Validation Queue record `recyUCQOIrwfrfKbV`
+### Source comparison
 
-For all three pairs:
+The current repository source and deployed version 96 contain the same relevant mapping and grouping logic.
 
-- Review Batch status is `Draft`
-- the reciprocal Validation Queue `Review Batches` link is populated
-- Validation Queue `Review Status` is `Pending Review`
+Validation mapping:
 
-This proves Scenario E created the Review Batch records and persisted the links correctly.
-
-## Current issue: deployed review-app display mismatch
-
-The remaining contradiction is inside the review application, not Make and not Airtable.
-
-### Manual batching path
-
-The manual batching handler reads the Validation Queue `Review Batches` field by Airtable field ID.
-
-It sees the existing assignment and correctly blocks rebatching.
-
-### Overview path
-
-The overview loader groups records through:
-
-```text
-getPendingReviewBatchesFromAirtable()
+```javascript
+reviewBatchRecordIds: airtableLinkIds_(airtableField_(record, 'Review Batches')),
 ```
 
-In the checkpoint source, this path should:
+Batch lookup:
 
-1. read each Validation Queue record's saved `Review Batches` links
-2. resolve the linked Review Batch
-3. assign the saved Review Batch key
-4. create an `UNBATCHED_...` key only when no Review Batch link exists
+```javascript
+const batchById = {};
+batchRecords.forEach(function(record) {
+  batchById[record.id] = record;
+});
+```
 
-The live records have valid Review Batch links, but the overview UI displays them as `UNBATCHED`.
+Grouping:
 
-### Conclusion
+```javascript
+const batchIds = row.reviewBatchRecordIds || [];
+const saved = batchIds.length ? batchById[batchIds[0]] : null;
+const savedKey = saved ? airtableText_(airtableField_(saved, 'Review Batch Key')) : '';
+row.reviewBatchKey = savedKey || 'UNBATCHED_' + (row.validationId || recordId);
+```
 
-The deployed review application is not using the same effective read/display logic or source state as the manual batching path.
+Client call path:
 
-Most likely explanations to verify:
+```text
+reloadBatches()
+  -> getPendingReviewBatches(...)
+  -> getPendingReviewBatchesFromAirtable(...)
+```
 
-1. the live web app deployment is pinned to an older Apps Script version containing stale overview-loader logic
-2. the deployed overview loader reads a mismatched field ID, table shape, or older implementation even though the manual batching handler is newer
+This disproved the original stale-deployment hypothesis for these blocks.
 
-This is a **deployed review-app read-path mismatch**.
+### Server-side execution verification
 
-Airtable and the manual-batching guard agree with each other. Only the overview grouping disagrees.
+`testGetPendingReviewBatchesFromAirtable` was executed in Apps Script.
 
-## Architectural decision
+Verified result:
 
-Freeze Make and Airtable for this issue.
+- `totalGroups: 83`
+- `savedBatchCount: 3`
+- `unbatchedGroupCount: 80`
+- `totalTicketCount: 83`
+- `duplicateBatchKeys: 0`
+- `groupsMissingSourceFileUrl: 0`
 
-Do not alter Scenario E, remove links, recreate Review Batches, or change Airtable records to make the UI agree. The stored state is already correct.
+The deployed server-side loader sees all three saved Review Batches correctly.
 
-The next investigation belongs in the review-app source/deployment path.
+The live overview still displayed the records as unbatched in a private/incognito browser window. Therefore the remaining display contradiction is downstream of the verified server-side payload, likely in client rendering or state interpretation. No fix was made because the user chose to move toward weekly batch rollup instead of spending more time on the current display mismatch.
+
+## Weekly Review Batch decision
+
+The user defined a broader batch-management direction:
+
+- persisted Review Batches are real operational objects, not temporary visual groups.
+- tickets must eventually be able to be batched, unbatched, rebatched, moved to a new batch, removed from a batch, or moved between batches.
+- every batch should keep its main batch information visible.
+- ticket rows inside a batch should be collapsible or expandable with a toggle.
+
+Immediate rollup rule:
+
+- use the printed Ticket Date.
+- weeks run Monday through Sunday.
+- timezone is always `America/Chicago`.
+- existing saved Review Batch assignments stay intact.
+- only currently unbatched Validation Queue records are candidates for the weekly rollup.
+- if no usable date is available, use the final day of the inferred week rather than creating a separate missing-date workflow for this batch.
+
+Proposed stable key format:
+
+```text
+WEEK_YYYY-MM-DD_TO_YYYY-MM-DD
+```
+
+## Ticket-date source finding
+
+The authoritative Airtable date fields were blank before review:
+
+- `Tickets -> Ticket Date` blank on all 83 Tickets.
+- `Validation Queue -> Final Ticket Date` blank on all 83 Validation Queue records.
+- `Parser Outputs -> Parsed Ticket Date` blank.
+- `OCR Outputs -> Extracted Ticket Date` blank.
+
+The review app currently reconstructs the displayed date candidate from Raw OCR Text through its runtime OCR-date candidate logic.
+
+This means the weekly inventory is based on the same OCR-derived date candidates currently shown by the review app, not on already-persisted date fields.
+
+## Temporary diagnostic helper added
+
+A temporary read-only helper was added to the end of `AirtableReadAdapter.gs` in the Apps Script editor:
+
+```text
+testWeeklyReviewBatchInventory
+```
+
+Supporting helper:
+
+```text
+weeklyReviewBatchKey_
+```
+
+The helper:
+
+- calls `getPendingReviewBatchesFromAirtable()`.
+- skips records already linked to saved Review Batches.
+- normalizes the displayed ticket-date candidate.
+- calculates Monday-through-Sunday keys in `America/Chicago`.
+- logs proposed weekly counts and missing or invalid dates.
+- writes nothing to Airtable.
+
+No Apps Script version or deployment was created after adding this helper.
+
+## Verified weekly inventory
+
+Initial dry-run result for the 80 unbatched records:
+
+| Proposed week | Count |
+|---|---:|
+| `WEEK_2026-06-22_TO_2026-06-28` | 1 |
+| `WEEK_2026-06-29_TO_2026-07-05` | 14 |
+| `WEEK_2026-07-06_TO_2026-07-12` | 23 |
+| `WEEK_2026-07-13_TO_2026-07-19` | 15 |
+| `WEEK_2026-07-20_TO_2026-07-26` | 26 |
+| `WEEK_DATE_MISSING` | 1 |
+
+Total unbatched records: 80.
+
+### Missing-date record resolved
+
+The only missing-date record was:
+
+- Validation Queue record ID: `rec3iuWAcxaR38Y1G`
+- Validation ID: `VAL_INTAKE_MOTIVE_1034044490_1034044490`
+
+Based on its sequence and the user's explicit fallback rule, `Validation Queue -> Final Ticket Date` was set to:
+
+```text
+2026-07-19
+```
+
+This places it in:
+
+```text
+WEEK_2026-07-13_TO_2026-07-19
+```
+
+Expected final weekly counts:
+
+| Proposed week | Count |
+|---|---:|
+| `WEEK_2026-06-22_TO_2026-06-28` | 1 |
+| `WEEK_2026-06-29_TO_2026-07-05` | 14 |
+| `WEEK_2026-07-06_TO_2026-07-12` | 23 |
+| `WEEK_2026-07-13_TO_2026-07-19` | 16 |
+| `WEEK_2026-07-20_TO_2026-07-26` | 26 |
+
+Total: 80. Missing date: 0.
+
+The diagnostic was not rerun after the one-record date write, so these final counts are mathematically expected from the verified initial output plus the verified date update, not yet a second logged test result.
+
+## What was changed
+
+- The temporary read-only weekly inventory helper was added to Apps Script source in the editor.
+- One live Validation Queue record, `rec3iuWAcxaR38Y1G`, had `Final Ticket Date` set to `2026-07-19` under the user's explicit fallback rule.
+- This checkpoint build log was updated.
 
 ## What was not changed
 
-- No application source code was changed.
+- No weekly Review Batch records were created.
+- No Validation Queue records were linked to weekly Review Batches.
+- The three existing saved Review Batch assignments were not changed.
 - No Apps Script version was created.
 - No Apps Script deployment was changed.
+- No Make scenario was changed during the review-app and weekly-rollup investigation.
 - No Make schedule was activated.
-- No Make scenario logic was changed after the verified corrections above.
 - No Airtable schema was changed.
-- No live Airtable record was manually edited or deleted.
-- No Review Batch or Validation Queue link was removed or rebuilt.
+- No records were deleted.
+- Google Sheets was not restored as the final architecture.
 
 ## Guardrails
 
@@ -168,29 +277,30 @@ The next investigation belongs in the review-app source/deployment path.
 - Diagnose before changing anything.
 - Airtable is the operational source of truth.
 - Do not restore Google Sheets as the final architecture.
-- Do not modify Make for this issue unless new evidence proves Make is involved.
-- Do not modify Airtable schema or live records for this issue.
-- Do not deploy or create an Apps Script version without explicit approval.
-- Show the exact proposed diff or deployment action before making a source or live deployment change.
-- Do not claim a deployment, test, commit, or live-data change unless verified.
+- Do not modify Make unless explicitly requested and justified.
+- Keep Scenario E at one-record scope unless explicitly approved otherwise.
+- Do not activate schedules.
+- Show the exact proposed action or diff before modifying Apps Script source, deployments, or live Airtable data.
+- Preserve the three existing saved Review Batch assignments.
+- Do not silently overwrite linked-record arrays.
+- Do not claim a deployment, commit, test, or live-data change unless verified.
 
 ## Smallest correct next step
 
-Identify the Apps Script deployment currently serving the live review-app URL and compare its deployed version/source against the repository implementation of:
+Rerun `testWeeklyReviewBatchInventory` once to verify:
 
-```text
-getPendingReviewBatchesFromAirtable()
-```
+- `totalUnbatched = 80`
+- no missing or invalid dates
+- final counts of `1, 14, 23, 16, 26`
 
-First determine whether the live web app is pinned to an older version. Do not edit or deploy anything during this inspection.
+Then prepare, but do not execute, the exact idempotent weekly batch write plan. The plan must show:
 
-Report:
+1. the five Review Batch records to create or reuse by stable weekly key.
+2. the exact Validation Queue record IDs assigned to each week.
+3. preservation of all existing linked-record IDs when updating a batch.
+4. reciprocal Validation Queue links or the Airtable linked-record behavior relied upon.
+5. readback verification after every create/update group.
+6. safe rerun behavior that does not duplicate batches or overwrite existing assignments.
+7. no movement of the three records already assigned to saved Review Batches.
 
-- live review-app URL or deployment ID
-- currently deployed Apps Script version number, if versioned
-- deployment update time, if available
-- the effective deployed implementation of `getPendingReviewBatchesFromAirtable()`
-- whether it reads the current Validation Queue `Review Batches` field ID
-- the exact difference from current repository source
-
-Only after the mismatch is proven should a minimal proposed diff or deployment correction be prepared.
+Do not perform the weekly batch writes until the exact plan and write payloads are shown and explicitly approved.
