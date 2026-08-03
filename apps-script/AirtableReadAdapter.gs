@@ -479,6 +479,7 @@ function manualBatchIds_(payload, minimum) {
 function validateManualBatchRows_(ids, targetBatchRecordId) {
   const rows = ids.map(function(id) { return {id: id, record: airtableGetRecord_(DIANE_AIRTABLE_TABLES.validationQueue, id)}; });
   const blocked = [];
+  const batchStatusById = {};
   rows.forEach(function(item) {
     const r = item.record; const reasons = [];
     if (norm_(airtableText_(airtableFieldById_(r, DIANE_AIRTABLE_FIELD_IDS.validationQueue.reviewStatus))) !== 'Pending Review') reasons.push('not Pending Review');
@@ -486,7 +487,21 @@ function validateManualBatchRows_(ids, targetBatchRecordId) {
     if (airtableTruthyById_(r, DIANE_AIRTABLE_FIELD_IDS.validationQueue.doNotBill)) reasons.push('Do Not Bill');
     const linked = airtableLinkIdsById_(r, DIANE_AIRTABLE_FIELD_IDS.validationQueue.reviewBatches);
     const other = linked.filter(function(id) { return id !== targetBatchRecordId; });
-    if (other.length) reasons.push('already assigned to another Review Batch');
+    const protectedBatches = other.filter(function(id) {
+      if (!Object.prototype.hasOwnProperty.call(batchStatusById, id)) {
+        const batch = airtableGetRecord_(DIANE_AIRTABLE_TABLES.reviewBatches, id);
+        batchStatusById[id] = norm_(airtableText_(
+          airtableFieldById_(
+            batch,
+            DIANE_AIRTABLE_FIELD_IDS.reviewBatches.batchStatus
+          )
+        ));
+      }
+      return batchStatusById[id] !== 'Draft';
+    });
+    if (protectedBatches.length) {
+      reasons.push('already assigned to a non-Draft Review Batch');
+    }
     if (reasons.length) blocked.push({validationRecordId: item.id, reasons: reasons});
     item.linkedBatchIds = linked;
   });
