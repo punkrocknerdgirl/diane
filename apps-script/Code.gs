@@ -191,7 +191,7 @@ function formatMoney_(v) {
 
 function getReviewLineTotal_(existingLineTotal, quantity, rate) {
   const existing = normNum_(existingLineTotal);
-  if (existing) return existing;
+  if (existing && Number(existing) !== 0) return existing;
 
   const q = Number(normNum_(quantity));
   const r = Number(normNum_(rate));
