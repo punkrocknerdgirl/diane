@@ -399,14 +399,15 @@ const DIANE_AIRTABLE_FIELD_IDS = {
     validationId: 'fldbonD66c0vV8Uxf', reviewStatus: 'fldiGPZRcFaTeZJ54',
     reviewBatches: 'fldZVxPcVZ2TD9hY2', doNotBill: 'fld7Ah2mk4X9EqbZQ',
     processed: 'fldkhxHm78IUtavtg', assignmentSource: 'fldAlpzIXWQLNUXKr',
-    batchLock: 'fldbPz2lqjZWAQ1xZ', finalTicketNumber: 'fldMCBbMde6gq57Cs', finalTicketDate: 'fld1uUmHyfsOh7OSO', finalDriver: 'fldFnqEgs9S5wtVlp', finalTruck: 'fldyL6QjQeHegVEkB', finalBroker: 'fld9YDUryueV7epDL', finalMaterial: 'fld48yi1U2DBMx2E7', finalQuantity: 'fldUuHnlZ9VJt4aYH', finalRate: 'fldobFUj51MIScTeM', finalTotal: 'fld5IN6BntCd4wDJM', reviewerNotes: 'fldy8MyJv4K766tpf', finalCustomerJob: 'fldmjSNoMeNIMZJdM', finalPoNumber: 'fldOXcWifpq0fkwf1', finalWorkOrder: 'fld7S1n1BkDbqMJ0Z', finalOrigin: 'fldrVBKiDR8xh76jg', finalDestination: 'fldKb9pJEskeNqwVt', reviewer: 'fldkHePHvAtGEACm1', processedAt: 'fldJtkykRgHq3aSqu'
+    batchLock: 'fldbPz2lqjZWAQ1xZ', finalTicketNumber: 'fldMCBbMde6gq57Cs', finalTicketDate: 'fld1uUmHyfsOh7OSO', finalDriver: 'fldFnqEgs9S5wtVlp', finalTruck: 'fldyL6QjQeHegVEkB', finalBroker: 'fld9YDUryueV7epDL', finalMaterial: 'fld48yi1U2DBMx2E7', finalQuantity: 'fldUuHnlZ9VJt4aYH', finalRate: 'fldobFUj51MIScTeM', finalTotal: 'fld5IN6BntCd4wDJM', reviewerNotes: 'fldy8MyJv4K766tpf', finalCustomerJob: 'fldmjSNoMeNIMZJdM', finalPoNumber: 'fldOXcWifpq0fkwf1', finalWorkOrder: 'fld7S1n1BkDbqMJ0Z', finalOrigin: 'fldrVBKiDR8xh76jg', finalDestination: 'fldKb9pJEskeNqwVt', reviewer: 'fldkHePHvAtGEACm1', processedAt: 'fldJtkykRgHq3aSqu', approvedAt: 'fldbJMDBog7IsCBiW'
   },
   reviewBatches: {
     batchKey: 'fldFVfnWOeuoxaT4H', batchStatus: 'fldek311IgUIjWmPz',
     validationQueue: 'fldmZkGiVoVtMmJWk', customerJob: 'fldb6LbODvJXb2pHJ',
     poNumber: 'fld9s64m8MFvmoaMJ', workOrder: 'fldfepZIzqNpI7FS4',
     origin: 'fldLEYxtwdE2YOkaO', destination: 'fld6NOGe5nSVeWaov',
-    rate: 'fldWH1pIFLrQcRW05'
+    rate: 'fldWH1pIFLrQcRW05', reviewer: 'fld8CE6Ox0MjTxfNo',
+    approvedAt: 'fld5DYmKVjGR30AMv'
   }
 };
 
@@ -526,6 +527,103 @@ function validateBatchOperationRows_(ids, targetBatchRecordId, rejectProcessed, 
   });
   if (problems.length) throw new Error('Batch operation blocked: ' + problems.join('; '));
   return rows;
+}
+
+function airtableCollaboratorIdById_(record, fieldId) {
+  const value = airtableFieldById_(record, fieldId);
+  return value && typeof value === 'object' ? norm_(value.id) : '';
+}
+
+function resolveAirtableReviewerId_(value) {
+  const reviewer = norm_(value);
+  const normalized = reviewer.toLowerCase();
+  if (reviewer === 'usroVCuQ6vu5oCeXW' || normalized === 'ee' || normalized === 'ernie' || normalized === 'ernie hathaway') {
+    return 'usroVCuQ6vu5oCeXW';
+  }
+  throw new Error('Unknown Reviewer collaborator.');
+}
+
+function approveBatchFromAirtable_(payload) {
+  const batchKey = norm_(payload.batchKey);
+  const batchRecordId = norm_(payload.batchRecordId);
+  const validationRecordIds = uniqueIds_(payload.validationRecordIds || []);
+  if (!batchKey) throw new Error('Missing Review Batch Key.');
+  if (!airtableRecordId_(batchRecordId)) throw new Error('A valid Review Batch record ID is required.');
+  if (!validationRecordIds.length) throw new Error('No Airtable Validation Queue records were supplied.');
+  const invalidIds = validationRecordIds.filter(function(id) { return !airtableRecordId_(id); });
+  if (invalidIds.length) throw new Error('Invalid Airtable validation record ID(s): ' + invalidIds.join(', '));
+
+  const reviewerId = resolveAirtableReviewerId_(payload.reviewer || payload.reviewerInitials);
+  const vf = DIANE_AIRTABLE_FIELD_IDS.validationQueue;
+  const bf = DIANE_AIRTABLE_FIELD_IDS.reviewBatches;
+  const batch = airtableGetRecord_(DIANE_AIRTABLE_TABLES.reviewBatches, batchRecordId);
+  const storedBatchKey = norm_(airtableText_(airtableFieldById_(batch, bf.batchKey)));
+  const batchStatus = norm_(airtableText_(airtableFieldById_(batch, bf.batchStatus)));
+  if (storedBatchKey !== batchKey) throw new Error('Review Batch Key does not match the selected Airtable batch.');
+  if (batchStatus !== 'Draft') throw new Error('Batch approval requires Review Batch status Draft; found ' + (batchStatus || 'blank') + '.');
+
+  const requiredFinalFields = [
+    ['Final Ticket Number', vf.finalTicketNumber], ['Final Ticket Date', vf.finalTicketDate],
+    ['Final Broker', vf.finalBroker], ['Final Customer / Job', vf.finalCustomerJob],
+    ['Final PO Number', vf.finalPoNumber], ['Final Truck', vf.finalTruck],
+    ['Final Driver', vf.finalDriver], ['Final Material', vf.finalMaterial],
+    ['Final Quantity', vf.finalQuantity], ['Final Rate', vf.finalRate]
+  ];
+  const records = validationRecordIds.map(function(id) {
+    return airtableGetRecord_(DIANE_AIRTABLE_TABLES.validationQueue, id);
+  });
+  const problems = [];
+  records.forEach(function(record) {
+    const id = record.id;
+    const status = norm_(airtableText_(airtableFieldById_(record, vf.reviewStatus)));
+    const linkedBatchIds = airtableLinkIdsById_(record, vf.reviewBatches);
+    if (linkedBatchIds.indexOf(batchRecordId) < 0) problems.push(id + ' is not linked to the selected Review Batch.');
+    if (status !== 'Pending Review') problems.push(id + ' is not Pending Review.');
+    if (airtableTruthyById_(record, vf.processed)) problems.push(id + ' is already Processed to Tickets.');
+    if (airtableTruthyById_(record, vf.doNotBill)) problems.push(id + ' is marked Do Not Bill.');
+    requiredFinalFields.forEach(function(item) {
+      const value = airtableFieldById_(record, item[1]);
+      if (value === null || value === undefined || norm_(airtableText_(value)) === '') {
+        problems.push(id + ' is missing ' + item[0] + '.');
+      }
+    });
+  });
+  if (problems.length) throw new Error('Batch approval blocked. ' + problems.join(' '));
+
+  const approvedAt = new Date().toISOString();
+  airtableUpdateRecords_(DIANE_AIRTABLE_TABLES.validationQueue, validationRecordIds.map(function(id) {
+    const fields = {};
+    fields[vf.reviewStatus] = 'Reviewed';
+    fields[vf.reviewer] = {id: reviewerId};
+    fields[vf.approvedAt] = approvedAt;
+    return {id: id, fields: fields};
+  }));
+
+  const ticketVerificationProblems = [];
+  validationRecordIds.forEach(function(id) {
+    const record = airtableGetRecord_(DIANE_AIRTABLE_TABLES.validationQueue, id);
+    if (norm_(airtableText_(airtableFieldById_(record, vf.reviewStatus))) !== 'Reviewed') ticketVerificationProblems.push(id + ' Review Status was not saved as Reviewed.');
+    if (airtableCollaboratorIdById_(record, vf.reviewer) !== reviewerId) ticketVerificationProblems.push(id + ' Reviewer was not saved correctly.');
+    if (!norm_(airtableText_(airtableFieldById_(record, vf.approvedAt)))) ticketVerificationProblems.push(id + ' Approved At was not saved.');
+    if (airtableTruthyById_(record, vf.processed)) ticketVerificationProblems.push(id + ' was unexpectedly marked Processed to Tickets.');
+    if (airtableTruthyById_(record, vf.doNotBill)) ticketVerificationProblems.push(id + ' was unexpectedly marked Do Not Bill.');
+    if (airtableLinkIdsById_(record, vf.reviewBatches).indexOf(batchRecordId) < 0) ticketVerificationProblems.push(id + ' lost its Review Batch link.');
+  });
+  if (ticketVerificationProblems.length) throw new Error('Airtable ticket approval verification failed. ' + ticketVerificationProblems.join(' '));
+
+  const batchFields = {};
+  batchFields[bf.batchStatus] = 'Approved';
+  batchFields[bf.reviewer] = {id: reviewerId};
+  batchFields[bf.approvedAt] = approvedAt;
+  airtableUpdateRecords_(DIANE_AIRTABLE_TABLES.reviewBatches, [{id: batchRecordId, fields: batchFields}]);
+  const verifiedBatch = airtableGetRecord_(DIANE_AIRTABLE_TABLES.reviewBatches, batchRecordId);
+  const batchVerificationProblems = [];
+  if (norm_(airtableText_(airtableFieldById_(verifiedBatch, bf.batchStatus))) !== 'Approved') batchVerificationProblems.push('Batch Status was not saved as Approved.');
+  if (airtableCollaboratorIdById_(verifiedBatch, bf.reviewer) !== reviewerId) batchVerificationProblems.push('Batch Reviewer was not saved correctly.');
+  if (!norm_(airtableText_(airtableFieldById_(verifiedBatch, bf.approvedAt)))) batchVerificationProblems.push('Batch Approved At was not saved.');
+  if (batchVerificationProblems.length) throw new Error('Airtable batch approval verification failed. ' + batchVerificationProblems.join(' '));
+
+  return {ok: true, batchKey: batchKey, batchRecordId: batchRecordId, approvedCount: validationRecordIds.length, reviewer: reviewerId, message: 'Approved ' + validationRecordIds.length + ' ticket(s) in batch.'};
 }
 
 function saveAirtableTicketFields(payload) {

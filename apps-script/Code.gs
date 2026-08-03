@@ -701,6 +701,10 @@ function prefillFinalApprovalFieldsFromDisplay_(sheet, headerMap, rowNumber) {
 
 function approveBatch(payload) {
  if (!payload) throw new Error('Missing batch approval payload.');
+ if (isAirtableReviewSource_(payload.source)) {
+   if (payload.rowNumbers || payload.rowNumber) throw new Error('Airtable batch approval does not accept row numbers.');
+   return approveBatchFromAirtable_(payload);
+ }
  const batchKey = norm_(payload.batchKey);
  if (!batchKey) throw new Error('Missing Review Batch Key.');
  const reviewer = normalizeReviewer_(payload.reviewer || payload.reviewerInitials);
