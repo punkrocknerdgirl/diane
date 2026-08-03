@@ -328,6 +328,10 @@ function getPendingReviewBatchesFromAirtable(options) {
       dataScope: airtableText_(f['Data Scope']), runLabel: airtableText_(f['Run Label']),
       truckAliasMap: truckAliasMap,
       batchTitle: buildBatchDisplayTitle_({broker:value('Broker',first.broker), customerJob:value('Customer / Job',first.customerJob), poNumber:value('PO Number',first.poNumber), workOrder:value('Work Order / Order',first.workOrder), origin:value('Origin',first.origin), destination:value('Destination',first.destination), rate:value('Rate',first.rate)}, batchKey),
+      sourceValidationIds: rows
+        .map(function(row) { return row.validationId; })
+        .filter(Boolean)
+        .join(';'),
       ticketCount: 0, invoiceTotal: 0, invoiceTotalDisplay: formatMoney_(0), rows: rows
     };
     rows.forEach(function(row) {
