@@ -593,7 +593,7 @@ function approveBatchFromAirtable_(payload) {
   const approvedAt = new Date().toISOString();
   airtableUpdateRecords_(DIANE_AIRTABLE_TABLES.validationQueue, validationRecordIds.map(function(id) {
     const fields = {};
-    fields[vf.reviewStatus] = 'Reviewed';
+    fields[vf.reviewStatus] = 'Approved';
     fields[vf.reviewer] = {id: reviewerId};
     fields[vf.approvedAt] = approvedAt;
     return {id: id, fields: fields};
@@ -602,7 +602,7 @@ function approveBatchFromAirtable_(payload) {
   const ticketVerificationProblems = [];
   validationRecordIds.forEach(function(id) {
     const record = airtableGetRecord_(DIANE_AIRTABLE_TABLES.validationQueue, id);
-    if (norm_(airtableText_(airtableFieldById_(record, vf.reviewStatus))) !== 'Reviewed') ticketVerificationProblems.push(id + ' Review Status was not saved as Reviewed.');
+    if (norm_(airtableText_(airtableFieldById_(record, vf.reviewStatus))) !== 'Approved') ticketVerificationProblems.push(id + ' Review Status was not saved as Approved.');
     if (airtableCollaboratorIdById_(record, vf.reviewer) !== reviewerId) ticketVerificationProblems.push(id + ' Reviewer was not saved correctly.');
     if (!norm_(airtableText_(airtableFieldById_(record, vf.approvedAt)))) ticketVerificationProblems.push(id + ' Approved At was not saved.');
     if (airtableTruthyById_(record, vf.processed)) ticketVerificationProblems.push(id + ' was unexpectedly marked Processed to Tickets.');
