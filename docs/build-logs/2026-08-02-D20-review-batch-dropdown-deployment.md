@@ -146,3 +146,117 @@ Perform one controlled live functional test in the Diane review app:
 6. If removal is part of the test, return the record to its original state and verify the final links.
 
 Do not choose or modify a live record until the exact test record, destination batch, expected result, and rollback path have been inspected and approved.
+
+---
+
+## Late-session checkpoint: batching model redesign
+
+**Checkpoint time:** 2026-08-02 22:11 Central
+
+### Additional source commits completed
+
+- `c5741f8f8e9a9fe13bbcd4ea80d2aa01e804d584`
+  - Changed `apps-script/Code.gs` so a stored numeric zero no longer blocks the quantity × rate fallback used for review line totals.
+  - No deployment or Apps Script version was created as part of that commit.
+
+- `8bd6694cf41f1b19c480166efba287049110439d`
+  - Added `getBatchDisplayLabel()` in `apps-script/JavaScript.html`.
+  - Changed weekly batch display labels to `Week Ending YYYY-MM-DD` in the existing-batch dropdown and overview header.
+  - No Airtable, Make, batch-key, server-side, deployment, or Apps Script version changes were made as part of that commit.
+
+### Deployment status requiring re-verification
+
+- The existing deployment was confirmed at version `98` before preparing a newer version.
+- A new version description was proposed: `Readable weekly batch labels and zero-total fallback`.
+- This checkpoint does not confirm that the new Apps Script version was created or that the deployment was updated. Re-verify before claiming either action occurred.
+
+### Live testing observations
+
+- A controlled ticket was successfully removed from a batch and returned to an unassigned state.
+- A direct move from one existing batch to another can still produce an error.
+- That cross-batch move error is currently non-blocking because ticket review can continue, but it remains an unresolved workflow defect.
+
+### New ticket-detail UI request
+
+The ticket detail screen should use the same four controls at both the top and bottom:
+
+1. Previous Ticket
+2. Save as Draft
+3. Save and Approve
+4. Next Ticket
+
+This has not been implemented yet.
+
+### Batch identity decision reset
+
+The `Week Ending YYYY-MM-DD` label is not an acceptable permanent batch identity.
+
+Reasoning:
+
+- Jobs may continue across multiple weeks.
+- Weekly grouping was useful only for seeing what was sitting in the review queue.
+- Most invoice batching is expected to be manual, especially early in production use.
+- The batch dropdown and overview need a stable, obvious business identity for each open invoice batch.
+
+Do not assume that a weekly date should define membership or naming.
+
+### Core lifecycle requirement
+
+Once a ticket has been invoiced:
+
+- it must be removed from every open batch;
+- it must not remain selectable for another open batch;
+- it must not appear as available for future open-batch assignment.
+
+The final design must explicitly define how this is enforced and verified.
+
+### Next planning task
+
+Before changing UI, Airtable schema, Make, or server-side batching logic, inventory and compare all reasonable batch grouping candidates, including:
+
+- Broker
+- Customer
+- Job
+- PO number
+- Work order
+- Destination
+- Origin
+- Material
+- Rate
+- Truck
+- Driver
+- Billing period
+- Invoice recipient
+- Customer-specific invoicing rules
+- Manual batch sequence or batch number
+- Creation date
+- User-entered batch name
+- Combinations of the above
+
+For each candidate, determine whether it should:
+
+- define membership;
+- label the batch;
+- appear only as supporting overview information;
+- be stored permanently in Airtable;
+- be reliable enough for automation.
+
+Then present 2–4 complete batching models ranging from simple/manual to more automated. Each model must cover:
+
+- permanent batch identity;
+- human-readable label;
+- membership rules;
+- open, approved, invoiced, and closed lifecycle;
+- removal of invoiced tickets from all open batches;
+- duplicate active-membership prevention;
+- cross-batch moves;
+- ongoing jobs;
+- dropdown display;
+- overview display;
+- whether a sequential batch number is needed.
+
+Do not recommend or implement a final model until the options are presented and Ernie selects the direction.
+
+### Immediate next step for the next chat
+
+Start with the grouping-candidate inventory and complete model options only. Make no changes.
