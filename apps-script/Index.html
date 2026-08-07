@@ -43,7 +43,12 @@
 
 <div id="detailView" class="hidden">
 <div class="top-bar">
- <div><h1>Ticket Review</h1><div class="subtle">Review scan, fix ticket fields, save draft, or approve.</div></div>
+ <div class="brand-lockup">
+   <div class="brand-mark" aria-hidden="true">▰</div>
+   <div class="brand-name">DIANE 2.0</div>
+   <div class="page-heading"><h1>Ticket Review</h1><div class="subtle">Review scan, fix ticket fields, save draft, or approve.</div></div>
+ </div>
+ <div class="header-status"><strong>Status:</strong> <span id="headerStatus" class="badge status-draft">Draft</span></div>
 </div>
 
 
@@ -108,8 +113,12 @@
  <div class="form-panel" id="ticketFieldsPanel">
    <h2>Ticket Fields</h2>
    <div class="batch-toolbar">
-     <button class="secondary" type="button" onclick="showListView()">Back to Overview</button>
-     <button class="warning" type="button" onclick="applySharedFieldsToAllTickets()">Apply Shared Fields to All Tickets</button>
+     <button class="secondary overview-action" type="button" onclick="showListView()">▦ &nbsp;Overview</button>
+     <button id="previousTicketButtonTop" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
+     <span class="record-position" id="recordPositionTop">Record 1 of 1</span>
+     <button id="nextTicketButtonTop" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
+     <button class="action-save" type="button" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
+     <button class="action-batch warning" type="button" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
      <button class="secondary" type="button" onclick="removeCurrentTicketFromBatch()">Remove Ticket from Batch</button>
      <div class="ticket-toolbar-status"><strong>Status:</strong> <span id="summaryStatus"></span></div>
    </div>
@@ -142,12 +151,17 @@
        <button id="approveButtonStatic" class="approve" type="button" onclick="approveCurrentTicket()">Save and Approve</button>
        <button id="returnToDraftButtonStatic" class="warning hidden" type="button" onclick="returnCurrentTicketToDraft()">Return to Draft</button>
      </div>
-     <div class="bottom-ticket-nav">
+     <div class="bottom-ticket-nav visual-ticket-nav">
        <div class="bottom-ticket-nav-left">
-         <button id="previousTicketButtonStatic" class="secondary" onclick="showPreviousTicket()">Previous Ticket</button>
-         <button id="nextTicketButtonStatic" class="secondary" onclick="showNextTicket()">Next Ticket</button>
+         <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
+         <button id="previousTicketButtonStatic" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
        </div>
-       <div class="bottom-ticket-nav-right"><button class="secondary" onclick="showListView()">Back to Overview</button></div>
+       <span class="record-position" id="recordPositionBottom">Record 1 of 1</span>
+       <div class="bottom-ticket-nav-right">
+         <button id="nextTicketButtonStatic" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
+         <button class="action-save" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
+         <button class="action-batch warning" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
+       </div>
      </div>
    </div>
 
@@ -159,12 +173,17 @@
 
 
    <div id="ticketEditView">
-     <div class="ticket-nav">
+     <div class="ticket-nav visual-ticket-nav">
        <div class="ticket-nav-left">
-         <button id="previousTicketButton" class="secondary" onclick="showPreviousTicket()">Previous Ticket</button>
-         <button id="nextTicketButton" class="secondary" onclick="showNextTicket()">Next Ticket</button>
+         <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
+         <button id="previousTicketButton" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
        </div>
-       <div class="ticket-nav-right"><button class="secondary" onclick="showListView()">Back to Overview</button></div>
+       <span class="record-position" id="recordPositionEditTop">Record 1 of 1</span>
+       <div class="ticket-nav-right">
+         <button id="nextTicketButton" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
+         <button class="action-save" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
+         <button class="action-batch warning" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
+       </div>
      </div>
      <div class="subtle">Save and Approve saves current corrections, then marks the ticket reviewed.</div>
      <div id="prominentTicketNumber" class="prominent-ticket-number"></div>
@@ -175,13 +194,13 @@
        <div class="field"><label class="label" for="poNumber">PO Number<span class="required-marker">*</span></label><input id="poNumber" class="editable"></div>
        <div class="field"><label class="label" for="workOrder">Work Order / Order</label><input id="workOrder" class="editable"></div>
        <div class="field"><label class="label" for="rate">Rate</label><input id="rate" class="editable"></div>
-       <div class="field full important"><label class="label" for="customerJob">Customer / Job<span class="required-marker">*</span></label><input id="customerJob" class="editable"></div>
+       <div class="field span-2 important"><label class="label" for="customerJob">Customer / Job<span class="required-marker">*</span></label><input id="customerJob" class="editable"></div>
        <div class="field"><label class="label" for="truck">Truck<span class="required-marker">*</span></label><input id="truck" class="editable"></div>
        <div class="field"><label class="label" for="driver">Driver<span class="required-marker">*</span></label><input id="driver" class="editable"></div>
-       <div class="field full"><label class="label" for="material">Material<span class="required-marker">*</span></label><input id="material" class="editable"></div>
+       <div class="field span-2"><label class="label" for="material">Material<span class="required-marker">*</span></label><input id="material" class="editable"></div>
        <div class="field important"><label class="label" for="quantity">Quantity<span class="required-marker">*</span></label><input id="quantity" class="editable"></div>
-       <div class="field full"><label class="label" for="origin">Origin</label><input id="origin" class="editable"></div>
-       <div class="field full"><label class="label" for="destination">Destination</label><input id="destination" class="editable"></div>
+       <div class="field span-2"><label class="label" for="origin">Origin</label><input id="origin" class="editable"></div>
+       <div class="field span-2"><label class="label" for="destination">Destination</label><input id="destination" class="editable"></div>
        <input id="lineTotal" type="hidden">
        <div class="field full"><label class="label" for="reviewNotes">Review Notes</label><textarea id="reviewNotes" class="editable"></textarea></div>
      </div>
@@ -195,12 +214,17 @@
        <button id="approveButton" class="approve" type="button" onclick="approveCurrentTicket()">Save and Approve</button>
        <button id="returnToDraftButton" class="warning hidden" type="button" onclick="returnCurrentTicketToDraft()">Return to Draft</button>
      </div>
-     <div class="bottom-ticket-nav">
+     <div class="bottom-ticket-nav visual-ticket-nav">
        <div class="bottom-ticket-nav-left">
-         <button id="previousTicketButtonBottom" class="secondary" onclick="showPreviousTicket()">Previous Ticket</button>
-         <button id="nextTicketButtonBottom" class="secondary" onclick="showNextTicket()">Next Ticket</button>
+         <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
+         <button id="previousTicketButtonBottom" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
        </div>
-       <div class="bottom-ticket-nav-right"><button class="secondary" onclick="showListView()">Back to Overview</button></div>
+       <span class="record-position" id="recordPositionEditBottom">Record 1 of 1</span>
+       <div class="bottom-ticket-nav-right">
+         <button id="nextTicketButtonBottom" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
+         <button class="action-save" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
+         <button class="action-batch warning" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
+       </div>
      </div>
      <div class="helper">Draft saves messy data. Approval requires all starred fields. Return to Draft removes approval and keeps the ticket editable.</div>
    </div>
