@@ -20,6 +20,7 @@
   --page-background:var(--color-bg-page);--header-background:var(--color-brand-primary);--header-background-end:var(--color-brand-secondary);--surface:var(--color-bg-surface);--surface-muted:var(--color-bg-subtle);--border:var(--color-border);--border-subtle:var(--color-border-subtle);--text:var(--color-text-primary);--text-muted:var(--color-text-secondary);--text-on-primary:var(--color-text-on-primary);--primary:var(--color-brand-primary);--primary-hover:var(--color-brand-primary-hover);--secondary:var(--color-action-secondary);--secondary-hover:var(--color-action-secondary-hover);--success:var(--color-success);--success-hover:var(--color-success-hover);--warning:var(--color-warning);--warning-hover:var(--color-warning-hover);--danger:var(--color-danger);--danger-hover:var(--color-danger-hover);--status-blue:var(--color-info);--status-purple:var(--color-status-purple);--status-gray:var(--color-status-gray);--focus:var(--color-focus);--disabled-opacity:var(--opacity-disabled);--field-background:var(--color-field-bg);--readonly-background:var(--color-readonly-bg);--error-background:var(--color-danger-bg);--error-border:var(--color-danger-border);--accent:var(--primary);--accent-hover:var(--primary-hover);--bg:var(--page-background);--card:var(--surface);--border-light:var(--border-subtle);--muted:var(--text-muted);--blue:var(--status-blue);--aqua:var(--warning);--aqua-hover:var(--warning-hover);--purple:var(--status-purple);--gray:var(--status-gray);--field-bg:var(--field-background);--ro-bg:var(--readonly-background);--err-bg:var(--error-background);--err-border:var(--error-border)
  }
  body{font-family:'Roboto', Arial, Helvetica, sans-serif;margin:0;background:var(--bg);color:var(--text)}
+ #listView{padding:20px}.overview-header{display:flex;align-items:center;gap:20px;margin:-20px -20px 16px;padding:14px 28px;background:linear-gradient(110deg,var(--header-background),var(--header-background-end));color:var(--text-on-primary)}.overview-header .page-heading h1{font-size:20px;margin:0 0 4px}.overview-header .page-heading .subtle{color:var(--color-text-on-primary);margin:0;font-size:14px}
  h1{margin:0 0 4px;font-size:28px;line-height:1.1}
  h2{margin-top:0;margin-bottom:6px;font-size:22px;line-height:1.15}
  .subtle{color:var(--muted);margin-bottom:12px;font-size:14px}
@@ -50,7 +51,7 @@
  #detailView .scan-panel,#detailView .form-panel{border-color:var(--color-border-strong);border-radius:9px;box-shadow:var(--shadow-panel);padding:14px}
  .visual-ticket-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--color-bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:0 0 10px}
  .visual-ticket-nav .ticket-nav-left,.visual-ticket-nav .ticket-nav-right,.visual-ticket-nav .bottom-ticket-nav-left,.visual-ticket-nav .bottom-ticket-nav-right{align-items:center}.record-position{font-size:16px;font-weight:700;white-space:nowrap;text-align:center}.overview-action{color:var(--color-info)!important;border:1px solid var(--color-info-border)!important;background:var(--color-bg-surface)!important}.action-save{background:var(--color-success)!important;color:var(--color-text-on-primary)!important;font-weight:700}.action-batch{background:var(--color-accent-secondary)!important;color:var(--color-text-on-primary)!important;font-weight:700}.batch-toolbar{align-items:center}.batch-toolbar .ticket-toolbar-status{margin-left:auto}.scan-panel h2,.form-panel h2{font-size:22px;margin-bottom:8px}.scan-toolbar{gap:9px}.scan-frame-wrap{border-color:var(--color-scan-bg);background:var(--color-scan-bg)}
- .batch-card,.scan-panel,.form-panel,.batch-panel{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;box-shadow:var(--shadow-card)}
+ .batch-card,.scan-panel,.form-panel,.batch-panel{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px;box-shadow:var(--shadow-panel)}
  .batch-card{margin-bottom:12px;border-left:8px solid var(--border)}
  .batch-card.status-new{border-left-color:var(--blue)}
  .batch-card.status-draft{border-left-color:var(--aqua)}
@@ -63,9 +64,9 @@
  .batch-title{font-size:17px;font-weight:700;margin-bottom:3px}
  .batch-card table th,.batch-card table td{text-align:left;vertical-align:middle}
 .batch-card table th.ticket-number-header,.batch-card table td.ticket-number-cell{text-align:right}
-.ticket-number-cell{white-space:nowrap}
+.ticket-number-cell{white-space:nowrap;padding-left:18px!important}.ticket-number-header{padding-left:18px!important}
  .ticket-number-badge{display:inline-block;min-width:96px;padding:6px 10px;border:none;border-radius:8px;background:var(--aqua);color:var(--color-text-on-primary);font-size:16px;font-weight:700;line-height:1.1;text-align:right;white-space:nowrap}
- .prominent-ticket-number{font-size:20px;font-weight:700;line-height:1.15;margin:4px 0 8px;color:var(--text);text-align:right}
+ .prominent-ticket-number{min-width:0;font-size:16px;font-weight:700;line-height:1.1;margin:6px 0 14px;color:var(--color-text-on-primary);text-align:left}
  .batch-meta{color:var(--muted);font-size:12px;line-height:1.3}
  .batch-header{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-bottom:10px}
  .batch-panel{margin-bottom:10px}
@@ -148,8 +149,9 @@
  .form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px}
  .field{display:flex;flex-direction:column;gap:3px}
  .field.full{grid-column:1/-1}.field.span-2{grid-column:span 2}.field.span-3{grid-column:span 3}
- .field.important input{font-size:18px;font-weight:700;padding:8px}
+ .field.important input{font-size:18px;font-weight:700;padding:8px}.review-notes-field textarea{min-height:36px}.reviewer-field{grid-column:span 1}
  .field input,.field textarea{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:14px;background:var(--field-bg);font-family:Arial,sans-serif}
+ .field select{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:14px;background:var(--field-bg);font-family:Arial,sans-serif}.rate-input{display:flex;align-items:center;gap:7px}.rate-input input{flex:1;min-width:0}.rate-unit{white-space:nowrap;color:var(--muted);font-size:13px}
  .field input.field-error,.field textarea.field-error{border:2px solid var(--err-border);background:var(--err-bg)}
  .field textarea{min-height:36px;resize:vertical;line-height:1.3}
  #reviewNotes{min-height:48px}#detailBatchNotes{min-height:42px}

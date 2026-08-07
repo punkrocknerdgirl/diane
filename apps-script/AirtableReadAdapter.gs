@@ -351,6 +351,16 @@ function getPendingReviewBatchesFromAirtable(options) {
   });
 }
 
+function getBrokerOptionsFromAirtable() {
+  return airtableListAll_(DIANE_AIRTABLE_TABLES.brokers).map(function(record) {
+    const fields = record.fields || {};
+    const rawCode = norm_(fields['Broker Code']);
+    const code = rawCode === 'TNB' ? 'TN' : rawCode;
+    const name = norm_(fields['Broker Name']);
+    return {code: code, name: name};
+  }).filter(function(item) { return item.code && item.name; });
+}
+
 function testAirtableReviewBatches() {
   const results = getPendingReviewBatchesFromAirtable({
     includePrevious: false
