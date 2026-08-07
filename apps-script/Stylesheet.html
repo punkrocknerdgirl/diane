@@ -66,7 +66,7 @@
 .batch-card table th.ticket-number-header,.batch-card table td.ticket-number-cell{text-align:right}
 .ticket-number-cell{white-space:nowrap;padding-left:18px!important}.ticket-number-header{padding-left:18px!important}
  .ticket-number-badge{display:inline-block;min-width:96px;padding:6px 10px;border:none;border-radius:8px;background:var(--aqua);color:var(--color-text-on-primary);font-size:16px;font-weight:700;line-height:1.1;text-align:right;white-space:nowrap}
- .ticket-number-header-area{display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin:6px 0 10px}.prominent-ticket-number{min-width:0;font-size:18px;font-weight:700;line-height:1.1;margin:0;color:var(--color-text-on-primary);text-align:right}.driver-truck-control{width:min(100%,240px);padding:7px 9px;background:var(--color-bg-subtle);border:1px solid var(--border-light);border-radius:7px}.driver-truck-control .label{display:block;margin-bottom:3px}.driver-truck-control select{width:100%}
+ .ticket-number-header-area{display:flex;flex-wrap:wrap;align-items:stretch;gap:7px;margin:2px 0 8px}.ticket-number-header-area select{height:29px;padding:4px 7px;font-size:13px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-surface);color:var(--color-text-input)}.broker-control,.driver-truck-control{position:relative;flex:1 1 160px;min-width:135px;box-sizing:border-box;padding:24px 7px 5px;border:1px solid var(--aqua);border-radius:7px;background:linear-gradient(to bottom,var(--aqua) 0 22px,var(--color-bg-surface) 22px 100%);color:var(--color-text-input)}.broker-control .label,.driver-truck-control .label{position:absolute;top:4px;left:9px;margin:0;color:var(--color-text-on-primary);font-size:13px;font-weight:400;line-height:1.1}.broker-control select,.driver-truck-control select{width:100%;font-size:13px;background:var(--color-bg-surface);color:var(--color-text-input)}.prominent-ticket-number{position:relative;display:flex;flex:1 1 160px;align-items:flex-end;justify-content:flex-end;min-width:135px;box-sizing:border-box;padding:24px 9px 5px;border:1px solid var(--aqua);border-radius:7px;background:linear-gradient(to bottom,var(--aqua) 0 22px,var(--color-bg-surface) 22px 100%);color:var(--color-text-input);font-size:16px;line-height:1.1;text-align:right}.prominent-ticket-number::before{content:"Ticket #";position:absolute;top:4px;left:9px;color:var(--color-text-on-primary);font:inherit;font-size:13px;font-weight:400;line-height:1.1;text-align:left}
  .batch-meta{color:var(--muted);font-size:12px;line-height:1.3}
  .batch-header{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-bottom:10px}
  .batch-panel{margin-bottom:10px}
@@ -112,7 +112,12 @@
  .bottom-ticket-nav{justify-content:space-between;align-items:center;padding-top:10px;margin-top:10px;border-top:1px solid var(--border-light)}
  .bottom-ticket-nav-left,.bottom-ticket-nav-right,.ticket-nav-left,.ticket-nav-right{display:flex;flex-wrap:wrap;gap:8px}
  .ticket-nav{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0 8px;padding-bottom:8px;border-bottom:1px solid var(--border-light)}
- .scan-toolbar{margin:8px 0}
+ .scan-toolbar{align-items:center;gap:6px;margin:4px 0 6px}
+ .scan-toolbar .scan-utility,.scan-toolbar .scan-replace{padding:5px 7px;font-size:11px;line-height:1.1;white-space:nowrap}
+ .scan-toolbar .scan-utility{font-weight:500}
+ .scan-toolbar .scan-replace{padding-left:8px;padding-right:8px;font-weight:700}
+ .scan-toolbar #scanRotationLabel{font-size:12px;line-height:1;white-space:nowrap;margin:0 1px}
+ @media (max-width:700px){.ticket-number-header-area{align-items:stretch}.prominent-ticket-number{flex:1 1 100%;min-width:0}.broker-control,.driver-truck-control{flex:1 1 calc(50% - 4px);min-width:0}}
  .scan-frame-wrap{position:relative;margin-top:8px;border:1px solid var(--border);border-radius:8px;overflow:auto;background:var(--color-bg-subtle);height:500px;display:flex;align-items:center;justify-content:center}
  .scan-preview-overlay{
   position:absolute;
@@ -149,12 +154,12 @@
  .form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px}
  .field{display:flex;flex-direction:column;gap:3px}
  .field.full{grid-column:1/-1}.field.span-2{grid-column:span 2}.field.span-3{grid-column:span 3}
- .field.important input{font-size:18px;font-weight:700;padding:8px}.review-notes-field textarea{min-height:36px}.reviewer-field{grid-column:span 1}
+ .field.important input{font-size:14px;font-weight:700;padding:6px 8px}.review-notes-field textarea{min-height:36px}.reviewer-field{grid-column:span 1}
  .field input,.field textarea{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:14px;background:var(--field-bg);font-family:Arial,sans-serif}
  .field select{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:14px;background:var(--field-bg);font-family:Arial,sans-serif}.rate-input{display:flex;align-items:center;gap:7px}.rate-input input{flex:1;min-width:0}.rate-unit{white-space:nowrap;color:var(--muted);font-size:13px}
  .field input.field-error,.field textarea.field-error{border:2px solid var(--err-border);background:var(--err-bg)}
  .field textarea{min-height:36px;resize:vertical;line-height:1.3}
- #reviewNotes{min-height:48px}#detailBatchNotes{min-height:42px}
+ #reviewNotes{min-height:36px}#detailBatchNotes{min-height:42px}
  input[readonly]{background:var(--ro-bg);color:var(--color-text-disabled)}
  input.editable,textarea.editable{background:var(--color-field-bg);color:var(--color-text-input)}
  .reviewer-row{margin-top:8px;padding-top:6px;border-top:1px solid var(--border-light)}
