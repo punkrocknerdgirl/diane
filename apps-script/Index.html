@@ -191,23 +191,29 @@
        </div>
      </div>
      <div class="subtle">Save and Approve saves current corrections, then marks the ticket reviewed.</div>
-     <div id="prominentTicketNumber" class="ticket-number-badge prominent-ticket-number"></div>
+     <div class="ticket-number-header-area">
+       <div id="prominentTicketNumber" class="ticket-number-badge prominent-ticket-number"></div>
+       <div class="driver-truck-control">
+         <label class="label" for="driverTruck">Driver / Truck</label>
+         <select id="driverTruck" class="editable" aria-label="Driver and truck"></select>
+         <input id="truck" type="hidden">
+         <input id="driver" type="hidden">
+       </div>
+     </div>
      <div class="form-grid">
-       <div class="field important"><label class="label" for="ticketNumber">Ticket #<span class="required-marker">*</span></label><input id="ticketNumber" class="editable"></div>
        <div class="field important"><label class="label" for="ticketDate">Ticket Date<span class="required-marker">*</span></label><input id="ticketDate" type="date" class="editable"></div>
-       <div class="field"><label class="label" for="broker">Broker<span class="required-marker">*</span></label><select id="broker" class="editable"><option value="">Select broker</option></select></div>
+       <div class="field important"><label class="label" for="ticketNumber">Ticket #<span class="required-marker">*</span></label><input id="ticketNumber" class="editable"></div>
+       <div class="field important"><label class="label" for="quantity">Qty<span class="required-marker">*</span></label><input id="quantity" class="editable"></div>
        <div class="field"><label class="label" for="poNumber">PO Number<span class="required-marker">*</span></label><input id="poNumber" class="editable"></div>
        <div class="field"><label class="label" for="workOrder">Work Order / Order</label><input id="workOrder" class="editable"></div>
-       <div class="field"><label class="label" for="rate">Rate</label><div class="rate-input"><span class="rate-unit">$</span><input id="rate" type="number" min="0" step="0.01" inputmode="decimal" class="editable"><span class="rate-unit">per ton</span></div></div>
        <div class="field span-2 important"><label class="label" for="customerJob">Customer / Job<span class="required-marker">*</span></label><input id="customerJob" class="editable"></div>
-       <div class="field"><label class="label" for="truck">Truck<span class="required-marker">*</span></label><input id="truck" class="editable"></div>
-       <div class="field"><label class="label" for="driver">Driver<span class="required-marker">*</span></label><input id="driver" class="editable"></div>
-       <div class="field span-2"><label class="label" for="material">Material<span class="required-marker">*</span></label><input id="material" class="editable"></div>
-       <div class="field important"><label class="label" for="quantity">Quantity<span class="required-marker">*</span></label><input id="quantity" class="editable"></div>
        <div class="field span-2"><label class="label" for="origin">Origin</label><input id="origin" class="editable"></div>
        <div class="field span-2"><label class="label" for="destination">Destination</label><input id="destination" class="editable"></div>
-       <div class="field reviewer-field"><label class="label" for="reviewer">Reviewer<span class="required-marker">*</span></label><select id="reviewer" class="editable"><option value=""></option><option value="usroVCuQ6vu5oCeXW">Ernie Hathaway</option></select></div>
-       <div class="field span-3 review-notes-field"><label class="label" for="reviewNotes">Reviewer Notes</label><textarea id="reviewNotes" class="editable"></textarea></div>
+       <div class="field span-2"><label class="label" for="material">Material<span class="required-marker">*</span></label><input id="material" class="editable"></div>
+       <div class="field"><label class="label" for="rate">Rate</label><div class="rate-input"><span class="rate-unit">$</span><input id="rate" type="number" min="0" step="0.01" inputmode="decimal" class="editable"><span class="rate-unit">per ton</span></div></div>
+       <div class="field span-3 review-notes-field"><label class="label" for="reviewNotes">Notes</label><textarea id="reviewNotes" class="editable"></textarea></div>
+       <div class="field reviewer-field"><label class="label" for="reviewer">Reviewer<span class="required-marker">*</span></label><select id="reviewer" class="editable"><option value="usroVCuQ6vu5oCeXW">Ernie Hathaway</option></select></div>
+       <div class="field"><label class="label" for="broker">Broker<span class="required-marker">*</span></label><select id="broker" class="editable"><option value="">Select broker</option></select></div>
        <input id="lineTotal" type="hidden">
      </div>
      <div id="approvalAlert" class="approval-alert"></div>
