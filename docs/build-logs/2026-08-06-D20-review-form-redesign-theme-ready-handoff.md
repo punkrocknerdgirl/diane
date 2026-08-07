@@ -115,3 +115,32 @@ This work is visual-only unless Ernie explicitly approves a functional change. D
 ## Exact next smallest step
 
 After Ernie separately approves source publication, inspect the exact staged diff and stage only the approved redesign files; then stop for a separate approval before Apps Script sync. Until that approval, the next safe step is a read-only visual review of the local rendered form.
+
+## 2026-08-06 — Final source checkpoint after UI review
+
+The review-form redesign was subsequently committed and pushed to `main`:
+
+- Commit: `4afb058` — `Refine Diane ticket review UI`
+- The supplied terminal output shows the push succeeded from `4a61de5` to `4afb058`.
+- Local verification shows `HEAD` and the local `origin/main` tracking ref both point to `4afb058`.
+- A fresh remote read was unavailable in this session because GitHub DNS could not be resolved; no stronger remote claim is made here.
+
+### Final source state
+
+- `apps-script/Index.html`, `apps-script/JavaScript.html`, and `apps-script/Stylesheet.html` are committed and pushed.
+- `git diff --check` passes.
+- No staged changes remain.
+- Unrelated untracked folders remain untouched: `diane-migration-backup-2026-07-26/`, `docs/Apps Script/`, and `skills/`.
+- No Apps Script sync, deployment, live UI verification, Airtable change, or Make change was performed.
+
+### UI review finding and resolution
+
+The suspected duplicate full-label `Apply Shared Fields to All Tickets` button was not present in the final local `Index.html`; the top toolbar contains the compact `Batch` action only, matching the bottom controls. No additional cleanup edit was required after the visual review.
+
+### ClickUp glossary status
+
+The ClickUp connector was unavailable for this checkpoint, so the `Terminal & Git Glossary` page was not modified and must not be reported as updated. Candidate reusable commands from this session for later deduplicated glossary review include `git status --short --branch`, `git log --oneline --decorate -8`, `git diff --check`, `git diff --cached --check`, `git commit -m`, and `git push origin main`.
+
+### Exact next smallest step
+
+Before any Apps Script sync or deployment, perform a read-only local/rendered verification of the pushed source and confirm the deployment target; keep Airtable and Make untouched.
