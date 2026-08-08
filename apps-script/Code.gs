@@ -409,7 +409,7 @@ if (norm_(row.testRow) === 'Yes')
   return { code:'DO_NOT_BILL', label:'Do Not Bill', className:'status-do-not-bill', buttonLabel:'View', buttonClassName:'secondary' };
 if (norm_(row.imported) === 'Yes')
   return { code:'PROCESSED', label:'Processed', className:'status-processed', buttonLabel:'View', buttonClassName:'secondary' };
-if (norm_(row.reviewStatus) === 'Reviewed' || norm_(row.readyForClean) === 'Yes')
+if (norm_(row.reviewStatus) === 'Reviewed' || norm_(row.reviewStatus) === 'Approved' || norm_(row.readyForClean) === 'Yes')
   return { code:'APPROVED', label:'Approved', className:'status-approved', buttonLabel:'View/Edit', buttonClassName:'approve' };
 if (norm_(row.reviewNotes).toLowerCase().indexOf('hold') >= 0)
   return { code:'HOLD', label:'Hold', className:'status-hold', buttonLabel:'Review', buttonClassName:'danger' };
