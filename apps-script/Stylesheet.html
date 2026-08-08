@@ -50,7 +50,7 @@
  #detailView .detail-layout{padding:0 20px}
  #detailView .scan-panel,#detailView .form-panel{border-color:var(--color-border-strong);border-radius:9px;box-shadow:var(--shadow-panel);padding:14px}
  .visual-ticket-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--color-bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:0 0 10px}
- .visual-ticket-nav .ticket-nav-left,.visual-ticket-nav .ticket-nav-right,.visual-ticket-nav .bottom-ticket-nav-left,.visual-ticket-nav .bottom-ticket-nav-right{align-items:center}.record-position{font-size:16px;font-weight:700;white-space:nowrap;text-align:center}.overview-action{color:var(--color-info)!important;border:1px solid var(--color-info-border)!important;background:var(--color-bg-surface)!important}.action-save{background:var(--color-success)!important;color:var(--color-text-on-primary)!important;font-weight:700}.action-batch{background:var(--color-accent-secondary)!important;color:var(--color-text-on-primary)!important;font-weight:700}.batch-toolbar{align-items:center}.batch-toolbar .ticket-toolbar-status{margin-left:auto}.scan-panel h2,.form-panel h2{font-size:22px;margin-bottom:8px}.scan-toolbar{gap:9px}.scan-frame-wrap{border-color:var(--color-scan-bg);background:var(--color-scan-bg)}
+ .visual-ticket-nav .ticket-nav-left,.visual-ticket-nav .ticket-nav-right,.visual-ticket-nav .bottom-ticket-nav-left,.visual-ticket-nav .bottom-ticket-nav-right{align-items:center}.record-position{min-width:112px;font-size:13px;font-weight:700;white-space:nowrap;text-align:center}.overview-action{color:var(--color-info)!important;border:1px solid var(--color-info-border)!important;background:var(--color-bg-surface)!important}.action-save{background:var(--color-success)!important;color:var(--color-text-on-primary)!important;font-weight:700}.action-batch{background:var(--color-accent-secondary)!important;color:var(--color-text-on-primary)!important;font-weight:700}.batch-toolbar{align-items:center}.batch-toolbar .ticket-toolbar-status{margin-left:auto}.detail-control-bar{display:flex;align-items:center;gap:8px}.detail-control-bar .nav-cluster{display:flex;align-items:center;gap:3px}.detail-control-bar .action-cluster{display:flex;align-items:center;gap:8px;margin-left:auto}.detail-control-bar>.overview-action{margin-left:8px}.ticket-toolbar-status{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.scan-panel h2,.form-panel h2{font-size:22px;margin-bottom:8px}.scan-toolbar{gap:9px}.scan-frame-wrap{border-color:var(--color-scan-bg);background:var(--color-scan-bg)}
  .batch-card,.scan-panel,.form-panel,.batch-panel{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px;box-shadow:var(--shadow-panel)}
  .batch-card{margin-bottom:12px;border-left:8px solid var(--border)}
  .batch-card.status-new{border-left-color:var(--blue)}
@@ -73,7 +73,7 @@
  .batch-panel-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
  .batch-edit-grid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:8px;margin-bottom:8px}
  .batch-static-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin-top:8px}
- .batch-toolbar,.ticket-static-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.form-panel>.batch-toolbar{padding:8px 10px;background:var(--color-bg-subtle);border:1px solid var(--border-light);border-radius:8px;margin-top:0;margin-bottom:8px}
+ .batch-toolbar,.ticket-static-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.form-panel>.batch-toolbar{padding:8px 10px;background:var(--color-bg-subtle);border:1px solid var(--border-light);border-radius:8px;margin-top:0;margin-bottom:0}.form-panel>.batch-toolbar.visual-ticket-nav{padding:10px 12px;background:var(--color-bg-surface);border-color:var(--border);border-radius:8px}.form-panel>.save-status{margin-top:8px;margin-bottom:8px}
  .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
  .value{font-size:14px;font-weight:600;margin-top:2px}
  .static-item{background:var(--color-bg-subtle);border:1px solid var(--border-light);border-radius:7px;padding:7px 8px}
@@ -154,7 +154,7 @@
  .form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px}
  .field{display:flex;flex-direction:column;gap:3px}
  .field.full{grid-column:1/-1}.field.span-2{grid-column:span 2}.field.span-3{grid-column:span 3}
- .field.important input{font-size:14px;font-weight:700;padding:6px 8px}.review-notes-field textarea{min-height:36px}.reviewer-field{grid-column:span 1}
+ .field.important input{font-size:14px;font-weight:700;padding:6px 8px}.review-field-group{grid-column:1 / -1;display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px}.review-field-group .review-notes-field{grid-column:3 / span 2;grid-row:1 / span 2}.review-notes-field textarea{flex:1;min-height:0}.reviewer-field{grid-column:span 2}
  .field input,.field textarea{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:14px;background:var(--field-bg);font-family:Arial,sans-serif}
  .field select{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:14px;background:var(--field-bg);font-family:Arial,sans-serif}.rate-input{display:flex;align-items:center;gap:7px}.rate-input input{flex:1;min-width:0}.rate-unit{white-space:nowrap;color:var(--muted);font-size:13px}
  .field input.field-error,.field textarea.field-error{border:2px solid var(--err-border);background:var(--err-bg)}
@@ -169,7 +169,7 @@
  @media(max-width:1000px){
    .top-bar{padding:12px 18px}.brand-name{font-size:23px}.page-heading{padding-left:12px}.visual-ticket-nav{align-items:flex-start;flex-direction:column}.visual-ticket-nav .ticket-nav-left,.visual-ticket-nav .ticket-nav-right,.visual-ticket-nav .bottom-ticket-nav-left,.visual-ticket-nav .bottom-ticket-nav-right{width:100%}.record-position{order:-1;align-self:center}
    .top-bar,.ticket-nav,.batch-card-header,.batch-panel-title-row,.bottom-ticket-nav{align-items:flex-start;flex-direction:column}
-   .batch-edit-grid,.batch-static-grid,.detail-layout,.form-grid{grid-template-columns:1fr}.field.span-2,.field.span-3{grid-column:auto}
+   .batch-edit-grid,.batch-static-grid,.detail-layout,.form-grid,.review-field-group{grid-template-columns:1fr}.field.span-2,.field.span-3,.review-notes-field{grid-column:auto}.review-field-group{grid-column:auto}.review-field-group .review-notes-field{grid-row:auto}
    .summary-save{margin-left:0}
    .scan-frame-wrap{height:420px}
  }

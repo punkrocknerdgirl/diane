@@ -81,15 +81,15 @@
 
 <div class="detail-layout">
  <div class="scan-panel">
-   <h2>Ticket Scan</h2>
+   <h2>Scan</h2>
    <div class="scan-toolbar">
-     <button type="button" onclick="openScanReviewWindow()">Open Scan Review Window</button>
-     <a id="openScanButton" class="button secondary" href="#" target="_blank">Open Scan in New Tab</a>
-     <button class="secondary" type="button" onclick="rotateScanPreview(-90)">Rotate Left</button>
-     <button class="secondary" type="button" onclick="rotateScanPreview(90)">Rotate Right</button>
-     <button class="secondary" type="button" onclick="resetScanRotation()">Reset Rotation</button>
+     <button class="scan-utility" type="button" onclick="openScanReviewWindow()">Open window</button>
+     <a id="openScanButton" class="button secondary scan-utility" href="#" target="_blank">Open tab</a>
+     <button class="secondary scan-utility" type="button" onclick="rotateScanPreview(-90)">Left</button>
+     <button class="secondary scan-utility" type="button" onclick="rotateScanPreview(90)">Right</button>
+     <button class="secondary scan-utility" type="button" onclick="resetScanRotation()">Reset</button>
      <span id="scanRotationLabel" class="helper">0°</span>
-     <button class="warning" type="button" onclick="toggleReplaceScanPanel()">Replace Scan for This Ticket</button>
+     <button class="warning scan-replace" type="button" onclick="toggleReplaceScanPanel()">Replace scan</button>
    </div>
    <div id="scanPreviewWrap" class="scan-frame-wrap">
      <iframe id="scanFrame" src=""></iframe>
@@ -116,17 +116,22 @@
 
 
  <div class="form-panel" id="ticketFieldsPanel">
-   <h2>Ticket Fields</h2>
-   <div class="batch-toolbar">
-     <button class="secondary overview-action" type="button" onclick="showListView()">▦ &nbsp;Overview</button>
+   <h2>Details</h2>
+   <div class="batch-toolbar visual-ticket-nav detail-control-bar">
+     <div class="nav-cluster">
      <button id="previousTicketButtonTop" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
      <span class="record-position" id="recordPositionTop">Record 1 of 1</span>
      <button id="nextTicketButtonTop" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
+     </div>
+     <div class="action-cluster">
      <button class="action-save" type="button" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
      <button class="action-batch warning" type="button" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
-     <button class="secondary" type="button" onclick="removeCurrentTicketFromBatch()">Remove Ticket from Batch</button>
-     <div class="ticket-toolbar-status"><strong>Status:</strong> <span id="summaryStatus"></span></div>
+     <button class="secondary" type="button" onclick="removeCurrentTicketFromBatch()">Remove from Batch</button>
+     <div class="ticket-toolbar-status"><strong>Status:</strong> <span id="summaryStatus" data-ticket-summary-status></span></div>
+     </div>
+     <button class="secondary overview-action" type="button" onclick="showListView()">▦ &nbsp;Overview</button>
    </div>
+   <div id="saveStatus" class="save-status">No changes saved yet.</div>
    <div id="ticketStaticView" class="hidden">
      <div class="batch-static-grid">
        <div class="static-item"><div class="label">Ticket #</div><div id="staticTicketNumber" class="value"></div></div>
@@ -156,17 +161,19 @@
        <button id="approveButtonStatic" class="approve" type="button" onclick="approveCurrentTicket()">Save and Approve</button>
        <button id="returnToDraftButtonStatic" class="warning hidden" type="button" onclick="returnCurrentTicketToDraft()">Return to Draft</button>
      </div>
-     <div class="bottom-ticket-nav visual-ticket-nav">
-       <div class="bottom-ticket-nav-left">
-         <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
+     <div class="bottom-ticket-nav visual-ticket-nav detail-control-bar">
+       <div class="bottom-ticket-nav-left nav-cluster">
          <button id="previousTicketButtonStatic" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
-       </div>
-       <span class="record-position" id="recordPositionBottom">Record 1 of 1</span>
-       <div class="bottom-ticket-nav-right">
+         <span class="record-position" id="recordPositionBottom">Record 1 of 1</span>
          <button id="nextTicketButtonStatic" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
-         <button class="action-save" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
-         <button class="action-batch warning" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
        </div>
+       <div class="bottom-ticket-nav-right action-cluster">
+       <button class="action-save" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
+       <button class="action-batch warning" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
+       <button class="secondary" type="button" onclick="removeCurrentTicketFromBatch()">Remove from Batch</button>
+       <div class="ticket-toolbar-status"><strong>Status:</strong> <span id="summaryStatusBottomStatic" data-ticket-summary-status></span></div>
+       </div>
+       <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
      </div>
    </div>
 
@@ -178,62 +185,55 @@
 
 
    <div id="ticketEditView">
-     <div class="ticket-nav visual-ticket-nav">
-       <div class="ticket-nav-left">
-         <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
-         <button id="previousTicketButton" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
-       </div>
-       <span class="record-position" id="recordPositionEditTop">Record 1 of 1</span>
-       <div class="ticket-nav-right">
-         <button id="nextTicketButton" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
-         <button class="action-save" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
-         <button class="action-batch warning" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
-       </div>
-     </div>
-     <div class="subtle">Save and Approve saves current corrections, then marks the ticket reviewed.</div>
      <div class="ticket-number-header-area">
-       <div id="prominentTicketNumber" class="ticket-number-badge prominent-ticket-number"></div>
+       <div class="broker-control">
+         <label class="label" for="broker">Broker<span class="required-marker">*</span></label>
+         <select id="broker" class="editable"><option value="">Select broker</option></select>
+       </div>
        <div class="driver-truck-control">
          <label class="label" for="driverTruck">Driver / Truck</label>
          <select id="driverTruck" class="editable" aria-label="Driver and truck"></select>
          <input id="truck" type="hidden">
          <input id="driver" type="hidden">
        </div>
+       <div id="prominentTicketNumber" class="ticket-number-badge prominent-ticket-number"></div>
      </div>
      <div class="form-grid">
        <div class="field important"><label class="label" for="ticketDate">Ticket Date<span class="required-marker">*</span></label><input id="ticketDate" type="date" class="editable"></div>
        <div class="field important"><label class="label" for="ticketNumber">Ticket #<span class="required-marker">*</span></label><input id="ticketNumber" class="editable"></div>
        <div class="field important"><label class="label" for="quantity">Qty<span class="required-marker">*</span></label><input id="quantity" class="editable"></div>
+       <div class="field"><label class="label" for="rate">Rate</label><div class="rate-input"><span class="rate-unit">$</span><input id="rate" type="number" min="0" step="0.01" inputmode="decimal" class="editable"><span class="rate-unit">per ton</span></div></div>
        <div class="field"><label class="label" for="poNumber">PO Number<span class="required-marker">*</span></label><input id="poNumber" class="editable"></div>
        <div class="field"><label class="label" for="workOrder">Work Order / Order</label><input id="workOrder" class="editable"></div>
        <div class="field span-2 important"><label class="label" for="customerJob">Customer / Job<span class="required-marker">*</span></label><input id="customerJob" class="editable"></div>
        <div class="field span-2"><label class="label" for="origin">Origin</label><input id="origin" class="editable"></div>
        <div class="field span-2"><label class="label" for="destination">Destination</label><input id="destination" class="editable"></div>
+       <div class="review-field-group">
        <div class="field span-2"><label class="label" for="material">Material<span class="required-marker">*</span></label><input id="material" class="editable"></div>
-       <div class="field"><label class="label" for="rate">Rate</label><div class="rate-input"><span class="rate-unit">$</span><input id="rate" type="number" min="0" step="0.01" inputmode="decimal" class="editable"><span class="rate-unit">per ton</span></div></div>
-       <div class="field span-3 review-notes-field"><label class="label" for="reviewNotes">Notes</label><textarea id="reviewNotes" class="editable"></textarea></div>
        <div class="field reviewer-field"><label class="label" for="reviewer">Reviewer<span class="required-marker">*</span></label><select id="reviewer" class="editable"><option value="usroVCuQ6vu5oCeXW">Ernie Hathaway</option></select></div>
-       <div class="field"><label class="label" for="broker">Broker<span class="required-marker">*</span></label><select id="broker" class="editable"><option value="">Select broker</option></select></div>
+       <div class="field span-3 review-notes-field"><label class="label" for="reviewNotes">Notes</label><textarea id="reviewNotes" class="editable"></textarea></div>
+       </div>
        <input id="lineTotal" type="hidden">
      </div>
      <div id="approvalAlert" class="approval-alert"></div>
-     <div id="saveStatus" class="save-status">No changes saved yet.</div>
      <div class="form-toolbar">
        <button id="saveButton" type="button" onclick="saveCurrentTicket()">Save as Draft</button>
        <button id="approveButton" class="approve" type="button" onclick="approveCurrentTicket()">Save and Approve</button>
        <button id="returnToDraftButton" class="warning hidden" type="button" onclick="returnCurrentTicketToDraft()">Return to Draft</button>
      </div>
-     <div class="bottom-ticket-nav visual-ticket-nav">
-       <div class="bottom-ticket-nav-left">
-         <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
+     <div class="bottom-ticket-nav visual-ticket-nav detail-control-bar">
+       <div class="bottom-ticket-nav-left nav-cluster">
          <button id="previousTicketButtonBottom" class="secondary" onclick="showPreviousTicket()">← &nbsp;Previous</button>
-       </div>
-       <span class="record-position" id="recordPositionEditBottom">Record 1 of 1</span>
-       <div class="bottom-ticket-nav-right">
+         <span class="record-position" id="recordPositionEditBottom">Record 1 of 1</span>
          <button id="nextTicketButtonBottom" class="secondary" onclick="showNextTicket()">Next &nbsp;→</button>
+       </div>
+       <div class="bottom-ticket-nav-right action-cluster">
          <button class="action-save" onclick="saveCurrentTicket()">▣ &nbsp;Save</button>
          <button class="action-batch warning" onclick="applySharedFieldsToAllTickets()">▤ &nbsp;Batch</button>
+         <button class="secondary" type="button" onclick="removeCurrentTicketFromBatch()">Remove from Batch</button>
+         <div class="ticket-toolbar-status"><strong>Status:</strong> <span id="summaryStatusBottom" data-ticket-summary-status></span></div>
        </div>
+       <button class="secondary overview-action" onclick="showListView()">▦ &nbsp;Overview</button>
      </div>
      <div class="helper">Draft saves messy data. Approval requires all starred fields. Return to Draft removes approval and keeps the ticket editable.</div>
    </div>
