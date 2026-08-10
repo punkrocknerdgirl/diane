@@ -1,69 +1,96 @@
 ---
+name: checkpoint
+description: End-of-session Diane 2.0 checkpoint. Writes a local build log, commits and pushes it to GitHub, then updates the local Terminal & Git Glossary (docs/build-logs/terminal-and-git-glossary.md) with any new commands from the session. Runs fully unattended once invoked.
+---
 
-## description: Update the Diane 2.0 build log and generate a starter-text handoff for the next chat
+# Diane 2.0 Checkpoint
 
-# /checkpoint
+This command closes out a Diane 2.0 build session in one pass. Run it when Ernie says "checkpoint," "wrap it up," "let's stop here," or similar. Do not ask for confirmation between steps unless something below tells you to stop. Ernie does not want to babysit this — do all of it, in order, and report back once at the end.
 
-Repo: `punkrocknerdgirl/diane` Build logs live at: `docs/build-logs/`
+## Step 0 — Verify environment before writing anything
 
-Run these steps in order. Do not skip the "read existing format" step — never invent a build-log structure from scratch.
+1. Confirm local checkout path: `/Users/erniehathaway/Projects/diane`
+2. Run `pwd` and `git rev-parse --show-toplevel` to confirm you are actually inside that repo, not a similarly named folder.
+3. Run `git status --short --branch` to see current branch, staged/unstaged/untracked state.
+4. Run `git remote -v` to confirm origin is `punkrocknerdgirl/diane`.
+5. Run `git fetch origin main` then `git rev-list --left-right --count origin/main...HEAD` to check for divergence from remote before doing anything else.
 
-## 1\. Read the most recent build log to match format exactly
+**Stop and flag Ernie only if:**
+- The repo root doesn't match the expected path
+- Origin doesn't match `punkrocknerdgirl/diane`
+- Local is behind origin/main (someone/something else pushed since last session)
 
-- List files in `docs/build-logs/`, sorted by filename (they're date-prefixed, so this is chronological).  
-- Open the most recent file and use it as the structural template: heading style, section order, level of detail, how module/scenario state is documented, how status labels are written.  
-- Do not assume a fixed schema beyond this. The most recent file IS the schema.
+Otherwise, proceed without asking.
 
-## 2\. Determine what changed this session
+## Step 1 — Write the local build log
 
-Review the current conversation/session for:
+Build log location: `docs/build-logs/`
 
-- Which scenario, module, sheet, table, or script was worked on  
-- What was diagnosed, confirmed, changed, or explicitly left unchanged  
-- Any exact values confirmed (module IDs, field mappings, filters, record counts, status codes, output shapes)  
-- Current status of each item touched: MAPPED / RUN TESTED / VALIDATED / PRODUCTION SAFE — only assign a status if it was actually confirmed this session, never inferred  
-- What is explicitly NOT done yet / where the restart point is
+Filename pattern: `YYYY-MM-DD-D20-<slug>.md` where `<slug>` is a short kebab-case description of the session's main work (e.g. `checkpoint-skill-clickup-sync-rework`).
 
-If something is unknown or wasn't verified this session, write "unknown" or "not verified this session" — do not fill gaps with assumptions.
+Content structure (match the pattern already established in prior checkpoints — see examples in `docs/build-logs/`):
 
-## 3\. Generate the filename
+- `# Diane 2.0 Checkpoint: <title>`
+- `**Date:**` and repo/checkout path
+- `## Purpose` — one or two sentences, what this session was actually for
+- `## Verified state` — what's actually confirmed true right now (commits, deployments, test results, table/record states) — never something assumed or reported-but-unverified. Use the "reported vs. verified" distinction the existing logs already use.
+- `## What changed this session` — concrete, itemized
+- `## What was NOT changed` — explicit exclusions, matching the existing guardrail habit of saying what was deliberately left alone
+- `## Guardrails` — carry forward the standing Diane guardrails (see below) plus anything session-specific
+- `## Next step` — the smallest next concrete action, not a wishlist
 
-Format: `YYYY-MM-DD-D20-<slug>.md`
+Do not overwrite or delete other build log files. Do not touch `docs/build-logs/build-log.md` (the running master log) unless explicitly asked — new sessions get their own dated file.
 
-- Date \= today's date  
-- Slug \= short kebab-case description of this session's main topic, generated from the actual session content (match the tone/length of existing filenames in `docs/build-logs/`, e.g. `ticket-detail-layout-and-refresh-state`, `scenario-04-dispatch-matching`)  
-- Do not overwrite an existing file. If a file with today's date \+ a very similar slug already exists, ask before proceeding — do not silently append or overwrite.
+## Step 2 — Scan the session for new terminal/git commands
 
-## 4\. Write the build log file
+Review the current session's tool calls and any commands Ernie or Claude Code ran. Build a list of commands that:
+- Are terminal, git, clasp, or related CLI commands
+- Were actually run this session (not hypothetical/discussed-but-not-run)
+- Are reusable/general (not one-off values like a specific commit hash or file path unique to this session — the *pattern* of the command, generalized, is what belongs in the glossary)
 
-- Follow the structure identified in step 1\.  
-- Content must be exact and specific: real module numbers/IDs, real field names, real filter values, real status — not summarized or paraphrased into vagueness.  
-- Distinguish production values from test values explicitly wherever both exist.  
-- Do not include anything about Make, Airtable schema, or Google Sheets changes that did not actually happen — this is a record of truth, not a plan.
+**Important:** also scan *prior* build logs for any previously-deferred glossary commands that were never actually confirmed added, and include those in this run's glossary pass too. Don't let deferred items get silently dropped a second time.
 
-## 5\. Commit and push
+## Step 3 — Update the local Terminal & Git Glossary
 
-- Stage only the new build-log file (and any other files actually changed this session, if applicable and already approved).  
-- Commit message: short, descriptive, matches the tone of existing commit messages in this repo's history (e.g. "Document scenario 04 origin resolution").  
-- Push to `main`.  
-- Do NOT commit or push anything that wasn't explicitly part of this session's confirmed work. If unsure whether a file should be included, ask first.
+File: `docs/build-logs/terminal-and-git-glossary.md`. This file is the system of record for the glossary — the ClickUp connector was unreliable and is no longer used for this step. No external API, no token, no network call.
 
-## 6\. Generate the starter-text handoff (chat output only — never written to repo)
+1. Read the current file in full.
+2. Parse existing entries. Each entry is a fenced code block (command) immediately followed by a plain-text description paragraph.
+3. For each candidate command from Step 2: check if it (or a clear equivalent) already exists in the file. **Do not add duplicates.** Matching is on the command itself, not the description wording.
+4. For genuinely new commands: write a description in the same voice/format as existing entries — plain, direct, states what the command does and any notable flag behavior. Match the terseness of the existing entries; don't over-explain.
+5. Re-sort the **entire glossary section** alphabetically by command text.
+6. If existing entries are already out of alphabetical order, fix that too as part of this same update — the instruction is "reorder it if commands have gotten out of order," not just "insert new ones correctly."
+7. This is an **append-and-reorder** edit to existing content, not a wipe. Preserve every existing entry and its description exactly as written, just relocated to the correct alphabetical position. Leave the file's intro paragraph at the top as-is.
+8. Write the file with `Edit`/`Write` directly. Before saving, diff the new content against what you read in step 1 and confirm no existing entry was dropped.
 
-Produce a block of text the user can paste into a new claude.ai chat to resume work. This is NOT a fixed template — vary the sections based on what's actually relevant, but always include, where applicable:
+If there's nothing new to add, leave the file untouched (don't stage/commit it just to churn it).
 
-- **Title** — one line, what this session/task is  
-- **Repo** (if code work) — exact repo name  
-- **Hard guardrails** — explicit "do not X" list for anything that must not happen without separate approval (e.g. do not modify Make, do not modify Airtable schema, do not deploy/commit/push without approval)  
-- **Verified state** — exact current state as confirmed this session: file/function/ module names, confirmed data flow, exact values (counts, IDs, statuses) — never vague summaries  
-- **What's NOT done / restart point** — the precise next unblocking action  
-- **Immediate task** — what the next chat should do first, as concretely as possible (include a proposed diff/snippet if one was already scoped but not applied)  
-- **Approval checkpoints** — if the next step requires showing a diff before editing, or requires explicit approval before commit/push/deploy, state that explicitly
+## Step 4 — Commit and push
 
-Output this as a single copy-pasteable markdown block at the end of your response. Do not write this to any file in the repo.
+1. `git add docs/build-logs/<new-file>` and, if Step 3 changed it, `docs/build-logs/terminal-and-git-glossary.md` — stage **only** these files, nothing else, unless Ernie explicitly approved other changes for this checkpoint.
+2. `git diff --cached --stat` — confirm only the intended file(s) are staged.
+3. `git commit -m "Checkpoint: <short description>"`
+4. `git push origin main`
+5. `git log --oneline --decorate -5` to confirm the push landed and show the new HEAD.
 
-## Notes
+If push is rejected because origin has moved: stop, do not force-push, flag Ernie with the exact error.
 
-- This command is Claude Code only. In claude.ai chat mode, "checkpoint" only produces the starter-text handoff (step 6\) and tells the user to run `/checkpoint` in Claude Code to actually persist the build log.  
-- If the session touched Diane 1.0 instead of 2.0, ask the user for the correct prefix before writing the filename — do not assume D20.
+## Step 5 — Report back once, at the end
 
+One summary message. Not a play-by-play. Include:
+- Build log filename created
+- Commit hash and confirmation it's pushed
+- List of any new glossary entries actually added to `docs/build-logs/terminal-and-git-glossary.md` (or confirmation none were needed)
+- Anything that got flagged/stopped and needs Ernie's input
+
+## Standing Diane guardrails (carry forward every checkpoint)
+
+- Diagnose before changing anything.
+- Work one exact step at a time when interacting with Ernie during the actual build (this checkpoint process itself is the exception — it runs straight through).
+- Preserve existing architecture and proven behavior unless redesign is explicitly requested.
+- Do not change production Make modules or logic without explicit approval.
+- Do not claim code was committed, pushed, deployed, tested, or verified unless it actually occurred — verified and reported-but-unverified are different categories and the build log must distinguish them.
+- Protect client data and credentials — never expose API keys, PATs, tokens, or secrets in chat, logs, commits, or commands that echo them.
+- Airtable remains the operational source of truth.
+- Do not restore Google Sheets as the final architecture.
+- Local checkout and GitHub main should stay in sync — the local folder is the working copy, GitHub is the record. Build logs are written locally first, then pushed, never edited directly on GitHub.
