@@ -21,6 +21,11 @@ clasp deploy -i <deployment-id> -V <version-number>
 Updates a specific existing Apps Script deployment to an explicit version. The deployment ID and version number must be verified first; this is a live deployment change and should remain a separate approval from source sync and version creation.
 
 ```bash
+clasp login
+```
+Authenticates the local clasp CLI with Google. Required when the session has expired (`invalid_grant` / `invalid_rapt` error on push). Opens a browser OAuth flow; after approval, credentials are stored locally so subsequent `clasp push` and `clasp deploy` calls work without re-auth.
+
+```bash
 clasp push
 ```
 Syncs the connected local Apps Script project files to Apps Script. This is a live-source write and requires valid Google authentication; it does not itself create a version or update a deployment.
