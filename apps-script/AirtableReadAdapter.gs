@@ -173,7 +173,8 @@ function mapAirtableValidation_(record, ticketById, parserById, ocrById, parserB
   const rate = final('Final Rate') || (ticket && airtableField_(ticket, 'Rate')) || '';
   const quantity = final('Final Quantity') || (ticket && airtableField_(ticket, 'Quantity')) || '';
   const savedFinalTotal = airtableField_(record, 'Final Total');
-  const lineTotal = savedFinalTotal !== null && savedFinalTotal !== undefined && savedFinalTotal !== ''
+  const hasSavedFinalTotal = savedFinalTotal !== null && savedFinalTotal !== undefined && savedFinalTotal !== '';
+  const lineTotal = hasSavedFinalTotal
     ? savedFinalTotal
     : final('Line Total') || (ticket && airtableField_(ticket, 'Line Total')) || getReviewLineTotal_('', quantity, rate);
   const rowObj = {
@@ -221,6 +222,23 @@ function mapAirtableValidation_(record, ticketById, parserById, ocrById, parserB
   rowObj.quantityCandidate = candidate(final('Final Quantity') || quantity, parsed('Parsed Quantity'), rowObj.ocrQuantity);
   rowObj.rateCandidate = candidate(final('Final Rate') || rate, parsed('Parsed Rate'), rowObj.ocrRate);
   rowObj.totalCandidate = candidate(final('Final Total') || final('Line Total') || lineTotal, parsed('Parsed Total'), rowObj.ocrTotal);
+  // Row-level invoice calculation integrity
+  rowObj.hasSavedFinalTotal = hasSavedFinalTotal;
+  var _qty = parseFloat(norm_(quantity));
+  var _rate = parseFloat(norm_(rate));
+  var _canCalc = isFinite(_qty) && isFinite(_rate) && norm_(quantity) !== '' && norm_(rate) !== '';
+  rowObj.expectedLineTotal = _canCalc ? Math.round(_qty * _rate * 100) / 100 : null;
+  if (!hasSavedFinalTotal) {
+    rowObj.totalIntegrityStatus = 'CALCULATED_FALLBACK';
+    rowObj.totalVariance = null;
+  } else if (!_canCalc) {
+    rowObj.totalIntegrityStatus = 'UNVERIFIED';
+    rowObj.totalVariance = null;
+  } else {
+    var _saved = parseFloat(airtableText_(savedFinalTotal));
+    rowObj.totalVariance = isFinite(_saved) ? Math.round((_saved - rowObj.expectedLineTotal) * 100) / 100 : null;
+    rowObj.totalIntegrityStatus = rowObj.totalVariance === 0 ? 'MATCH' : 'MISMATCH';
+  }
   rowObj.viewedLabel = norm_(rowObj.viewedInReviewApp).toLowerCase() === 'yes' ? 'Viewed' : 'Not Viewed';
   rowObj.viewedClassName = norm_(rowObj.viewedInReviewApp).toLowerCase() === 'yes' ? 'viewed-yes' : 'viewed-no';
   rowObj.ticketDateDisplay = displayMissing_(rowObj.ticketDate); rowObj.ticketNumberDisplay = displayMissing_(rowObj.ticketNumber);
@@ -339,6 +357,16 @@ function getPendingReviewBatchesFromAirtable(options) {
       if (n !== null) batch.invoiceTotal += n;
       batch.ticketCount++;
     });
+    // Batch-level invoice calculation integrity
+    var _mismatch = 0, _unverified = 0, _fallback = 0;
+    rows.forEach(function(row) {
+      var st = row.totalIntegrityStatus;
+      if (st === 'MISMATCH') _mismatch++;
+      else if (st === 'UNVERIFIED') _unverified++;
+      else if (st === 'CALCULATED_FALLBACK') _fallback++;
+    });
+    batch.totalIntegrity = {mismatchCount: _mismatch, unverifiedCount: _unverified, calculatedFallbackCount: _fallback};
+    batch.invoiceCalculationStatus = (_mismatch === 0 && _fallback === 0) ? 'READY' : 'BLOCKED';
     const s = getBatchStatus_(rows);
     batch.statusCode = s.code; batch.statusLabel = s.label; batch.statusClassName = s.className;
     batch.invoiceTotalDisplay = formatMoney_(batch.invoiceTotal);
@@ -402,6 +430,23 @@ function testGetPendingReviewBatchesFromAirtable() {
   console.log(JSON.stringify(summary));
 }
 
+// Invoice calculation integrity gate. Throws when a batch is not READY for invoice
+// generation. Defined here but intentionally not wired into any call path yet —
+// wire in once the invoice-generation flow is built and approved.
+function assertInvoiceCalculationIntegrity_(batch) {
+  if (!batch || !batch.totalIntegrity) throw new Error('Invoice calculation integrity data missing from batch.');
+  if (batch.invoiceCalculationStatus !== 'READY') {
+    var ti = batch.totalIntegrity;
+    throw new Error(
+      'Invoice calculation integrity check failed for batch ' + (batch.batchKey || '(unknown)') +
+      '. Status: ' + batch.invoiceCalculationStatus +
+      ' — Mismatches: ' + ti.mismatchCount +
+      ', Unverified: ' + ti.unverifiedCount +
+      ', Fallbacks: ' + ti.calculatedFallbackCount + '.'
+    );
+  }
+}
+
 // Production manual-batching write support. This path uses Airtable record IDs
 // exclusively and is intentionally separate from the legacy Sheet handlers.
 const DIANE_AIRTABLE_FIELD_IDS = {
@@ -409,7 +454,7 @@ const DIANE_AIRTABLE_FIELD_IDS = {
     validationId: 'fldbonD66c0vV8Uxf', reviewStatus: 'fldiGPZRcFaTeZJ54',
     reviewBatches: 'fldZVxPcVZ2TD9hY2', doNotBill: 'fld7Ah2mk4X9EqbZQ',
     processed: 'fldkhxHm78IUtavtg', assignmentSource: 'fldAlpzIXWQLNUXKr',
-    batchLock: 'fldbPz2lqjZWAQ1xZ', finalTicketNumber: 'fldMCBbMde6gq57Cs', finalTicketDate: 'fld1uUmHyfsOh7OSO', finalDriver: 'fldFnqEgs9S5wtVlp', finalTruck: 'fldyL6QjQeHegVEkB', finalBroker: 'fld9YDUryueV7epDL', finalMaterial: 'fld48yi1U2DBMx2E7', finalQuantity: 'fldUuHnlZ9VJt4aYH', finalRate: 'fldobFUj51MIScTeM', finalTotal: 'fld5IN6BntCd4wDJM', reviewerNotes: 'fldy8MyJv4K766tpf', finalCustomerJob: 'fldmjSNoMeNIMZJdM', finalPoNumber: 'fldOXcWifpq0fkwf1', finalWorkOrder: 'fld7S1n1BkDbqMJ0Z', finalOrigin: 'fldrVBKiDR8xh76jg', finalDestination: 'fldKb9pJEskeNqwVt', reviewer: 'fldkHePHvAtGEACm1', processedAt: 'fldJtkykRgHq3aSqu', approvedAt: 'fldbJMDBog7IsCBiW'
+    batchLock: 'fldbPz2lqjZWAQ1xZ', finalTicketNumber: 'fldMCBbMde6gq57Cs', finalTicketDate: 'fld1uUmHyfsOh7OSO', finalDriver: 'fldFnqEgs9S5wtVlp', finalTruck: 'fldyL6QjQeHegVEkB', finalBroker: 'fld9YDUryueV7epDL', finalMaterial: 'fld48yi1U2DBMx2E7', finalQuantity: 'fldUuHnlZ9VJt4aYH', finalRate: 'fldobFUj51MIScTeM', finalTotal: 'fldLfatXbIkD7V17z', reviewerNotes: 'fldy8MyJv4K766tpf', finalCustomerJob: 'fldmjSNoMeNIMZJdM', finalPoNumber: 'fldOXcWifpq0fkwf1', finalWorkOrder: 'fld7S1n1BkDbqMJ0Z', finalOrigin: 'fldrVBKiDR8xh76jg', finalDestination: 'fldKb9pJEskeNqwVt', reviewer: 'fldkHePHvAtGEACm1', processedAt: 'fldJtkykRgHq3aSqu', approvedAt: 'fldbJMDBog7IsCBiW'
   },
   reviewBatches: {
     batchKey: 'fldFVfnWOeuoxaT4H', batchStatus: 'fldek311IgUIjWmPz',
@@ -657,7 +702,7 @@ function saveAirtableTicketFields(payload) {
   fields[f.finalMaterial] = norm_(payload.material);
   fields[f.finalQuantity] = number(payload.quantity, 'Final Quantity');
   fields[f.finalRate] = number(payload.rate, 'Final Rate');
-  fields[f.finalTotal] = number(payload.lineTotal, 'Final Total');
+
   fields[f.reviewerNotes] = norm_(payload.reviewNotes);
   const reviewer = norm_(payload.reviewer);
   if (reviewer === '') {
