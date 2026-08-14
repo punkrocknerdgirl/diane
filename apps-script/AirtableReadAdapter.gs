@@ -173,9 +173,21 @@ function mapAirtableValidation_(record, ticketById, parserById, ocrById, parserB
   const rate = final('Final Rate') || (ticket && airtableField_(ticket, 'Rate')) || '';
   const quantity = final('Final Quantity') || (ticket && airtableField_(ticket, 'Quantity')) || '';
   const savedFinalTotal = airtableField_(record, 'Final Total');
+  const hasSavedFinalTotal = savedFinalTotal !== null && savedFinalTotal !== undefined && savedFinalTotal !== '';
   const lineTotal = savedFinalTotal !== null && savedFinalTotal !== undefined && savedFinalTotal !== ''
     ? savedFinalTotal
     : final('Line Total') || (ticket && airtableField_(ticket, 'Line Total')) || getReviewLineTotal_('', quantity, rate);
+  const expectedLineTotal = getReviewLineTotal_('', quantity, rate);
+  const expectedTotalNumber = numberFromReviewValue_(expectedLineTotal);
+  const approvedTotalNumber = numberFromReviewValue_(lineTotal);
+  const totalVariance = expectedTotalNumber !== null && approvedTotalNumber !== null
+    ? Math.round((approvedTotalNumber - expectedTotalNumber) * 100) / 100
+    : null;
+  const totalIntegrityStatus = !hasSavedFinalTotal
+    ? 'CALCULATED_FALLBACK'
+    : totalVariance === null
+      ? 'UNVERIFIED'
+      : Math.abs(totalVariance) <= 0.01 ? 'MATCH' : 'MISMATCH';
   const rowObj = {
     rowNumber: null,
     validationRecordId: record.id,
@@ -194,7 +206,9 @@ function mapAirtableValidation_(record, ticketById, parserById, ocrById, parserB
     truck: airtableText_(final('Final Truck')), driver: airtableText_(final('Final Driver')),
     material: airtableText_(final('Final Material')), quantity: airtableText_(quantity), rate: airtableText_(rate),
     origin: airtableText_(final('Final Origin')), destination: airtableText_(final('Final Destination')),
-    lineTotal: airtableText_(lineTotal), reviewNotes: airtableText_(final('Reviewer Notes')),
+    lineTotal: airtableText_(lineTotal), expectedLineTotal: airtableText_(expectedLineTotal),
+    totalVariance: totalVariance, totalIntegrityStatus: totalIntegrityStatus,
+    reviewNotes: airtableText_(final('Reviewer Notes')),
     reviewer: (function(value) {
       return value && typeof value === 'object' && value.id ? value.id : '';
     })(airtableField_(record, 'Reviewer')), reviewBatchKey: '',
@@ -308,6 +322,10 @@ function getPendingReviewBatchesFromAirtable(options) {
     const rows = batches[batchKey].rows;
     const status = airtableText_(f['Batch Status']);
     const first = rows[0] || {};
+    const mismatchCount = rows.filter(function(row) { return row.totalIntegrityStatus === 'MISMATCH'; }).length;
+    const unverifiedCount = rows.filter(function(row) { return row.totalIntegrityStatus === 'UNVERIFIED'; }).length;
+    const fallbackCount = rows.filter(function(row) { return row.totalIntegrityStatus === 'CALCULATED_FALLBACK'; }).length;
+    const invoiceCalculationStatus = mismatchCount || unverifiedCount || fallbackCount ? 'BLOCKED' : 'READY';
     const value = function(name, fallback) {
       const savedValue = airtableText_(f[name]);
       return savedValue || fallback || '';
@@ -332,7 +350,13 @@ function getPendingReviewBatchesFromAirtable(options) {
         .map(function(row) { return row.validationId; })
         .filter(Boolean)
         .join(';'),
-      ticketCount: 0, invoiceTotal: 0, invoiceTotalDisplay: formatMoney_(0), rows: rows
+      ticketCount: 0, invoiceTotal: 0, invoiceTotalDisplay: formatMoney_(0), rows: rows,
+      invoiceCalculationStatus: invoiceCalculationStatus,
+      totalIntegrity: {
+        mismatchCount: mismatchCount,
+        unverifiedCount: unverifiedCount,
+        calculatedFallbackCount: fallbackCount
+      }
     };
     rows.forEach(function(row) {
       const n = numberFromReviewValue_(row.lineTotal);
@@ -349,6 +373,19 @@ function getPendingReviewBatchesFromAirtable(options) {
     const diff = (ORDER[a.statusCode] || 99) - (ORDER[b.statusCode] || 99);
     return diff || a.batchKey.localeCompare(b.batchKey);
   });
+}
+
+function assertInvoiceCalculationIntegrity_(batch) {
+  if (!batch || batch.invoiceCalculationStatus !== 'READY') {
+    const integrity = batch && batch.totalIntegrity ? batch.totalIntegrity : {};
+    throw new Error(
+      'Invoice generation blocked: unresolved line-total integrity issues.' +
+      ' Mismatches=' + (integrity.mismatchCount || 0) +
+      ', unverified=' + (integrity.unverifiedCount || 0) +
+      ', calculated fallback=' + (integrity.calculatedFallbackCount || 0) + '.'
+    );
+  }
+  return true;
 }
 
 function getBrokerOptionsFromAirtable() {
@@ -657,7 +694,6 @@ function saveAirtableTicketFields(payload) {
   fields[f.finalMaterial] = norm_(payload.material);
   fields[f.finalQuantity] = number(payload.quantity, 'Final Quantity');
   fields[f.finalRate] = number(payload.rate, 'Final Rate');
-  fields[f.finalTotal] = number(payload.lineTotal, 'Final Total');
   fields[f.reviewerNotes] = norm_(payload.reviewNotes);
   const reviewer = norm_(payload.reviewer);
   if (reviewer === '') {
@@ -789,4 +825,141 @@ function addSelectedTicketsToExistingBatchAirtable_(payload) {
     clearManualBatchRequestCache_(requestId);
     throw e;
   } finally { lock.releaseLock(); }
+}
+
+
+// ============================================================================
+// One-time date backfill
+// Finds Validation Queue records with no Final Ticket Date and writes the best
+// available candidate: Ticket.Ticket Date → Parser.Parsed Ticket Date →
+// OCR.Extracted Ticket Date → date extracted from OCR raw text.
+//
+// Run previewBackfillTicketDates() first to see what would change.
+// Run runBackfillTicketDates() to apply.
+// ============================================================================
+
+function backfillTicketDates_(dryRun) {
+  const validationRecords = airtableListAll_(DIANE_AIRTABLE_TABLES.validationQueue);
+  const parserRecords     = airtableListAll_(DIANE_AIRTABLE_TABLES.parserOutputs);
+  const ocrRecords        = airtableListAll_(DIANE_AIRTABLE_TABLES.ocrOutputs);
+  const ticketRecords     = airtableListAll_(DIANE_AIRTABLE_TABLES.tickets);
+
+  // Build the same lookups used by mapAirtableValidation_
+  const ticketById = {};
+  ticketRecords.forEach(function(r) { ticketById[r.id] = r; });
+
+  const parserById = {};
+  const parserByValidationId = {};
+  parserRecords.forEach(function(r) {
+    parserById[r.id] = r;
+    airtableLinkIds_(airtableField_(r, 'Validation Queue')).forEach(function(id) {
+      parserByValidationId[id] = r;
+    });
+  });
+
+  const ocrById = {};
+  const ocrByTicketId = {};
+  const ocrByTicketNumber = {};
+  ocrRecords.forEach(function(r) {
+    ocrById[r.id] = r;
+    airtableLinkIds_(airtableField_(r, 'Tickets')).forEach(function(id) { ocrByTicketId[id] = r; });
+    const num = airtableText_(airtableField_(r, 'Extracted Ticket Number'));
+    if (num) ocrByTicketNumber[num] = r;
+  });
+
+  const results = {
+    dryRun: dryRun,
+    checked: 0, alreadyHasDate: 0,
+    willUpdate: 0, noDateFound: 0,
+    updated: 0, updateFailed: 0,
+    rows: []
+  };
+
+  const pendingUpdates = [];
+
+  validationRecords.forEach(function(record) {
+    results.checked++;
+
+    // Skip if Final Ticket Date is already populated
+    const existing = norm_(airtableText_(airtableField_(record, 'Final Ticket Date')));
+    if (existing) { results.alreadyHasDate++; return; }
+
+    // Resolve linked records — same logic as mapAirtableValidation_
+    const linkedTicketIds = airtableLinkIds_(airtableField_(record, 'Ticket'));
+    const ticket = linkedTicketIds.length ? ticketById[linkedTicketIds[0]] : null;
+
+    const parserIds = airtableLinkIds_(airtableField_(record, 'Parser Output'));
+    const parser = parserIds.length ? parserById[parserIds[0]] : (parserByValidationId[record.id] || null);
+
+    const ocrIds = parser ? airtableLinkIds_(airtableField_(parser, 'OCR Output')) : [];
+    const ticketNum = airtableText_(airtableField_(record, 'Final Ticket Number') ||
+      (ticket && airtableField_(ticket, 'Ticket Number')));
+    const ocr = ocrIds.length
+      ? ocrById[ocrIds[0]]
+      : (linkedTicketIds.length
+          ? ocrByTicketId[linkedTicketIds[0]] || ocrByTicketNumber[ticketNum] || null
+          : ocrByTicketNumber[ticketNum] || null);
+
+    // Resolution chain: Ticket → Parser → OCR extracted → OCR raw text
+    const ticketDate   = ticket ? norm_(airtableText_(airtableField_(ticket, 'Ticket Date'))) : '';
+    const parsedDate   = parser ? norm_(airtableText_(airtableField_(parser, 'Parsed Ticket Date'))) : '';
+    const ocrExtracted = ocr    ? norm_(airtableText_(airtableField_(ocr, 'Extracted Ticket Date'))) : '';
+    const ocrRaw       = ocr    ? ocrDateCandidate_(airtableField_(ocr, 'Raw OCR Text')) : '';
+
+    const raw = ticketDate || parsedDate || ocrExtracted || ocrRaw;
+    const formatted = raw ? formatReviewDate_(raw) : '';
+
+    const source = ticketDate ? 'ticket'
+      : parsedDate ? 'parser'
+      : ocrExtracted ? 'ocr_field'
+      : ocrRaw ? 'ocr_raw_text'
+      : '';
+
+    const rowInfo = {
+      id: record.id,
+      validationId: norm_(airtableText_(airtableField_(record, 'Validation ID'))),
+      source: source,
+      raw: raw,
+      formatted: formatted
+    };
+
+    if (!formatted) {
+      results.noDateFound++;
+      rowInfo.status = 'NO_DATE_FOUND';
+      results.rows.push(rowInfo);
+      return;
+    }
+
+    results.willUpdate++;
+    rowInfo.status = 'WILL_UPDATE';
+    results.rows.push(rowInfo);
+    pendingUpdates.push({
+      id: record.id,
+      fields: { [DIANE_AIRTABLE_FIELD_IDS.validationQueue.finalTicketDate]: formatted }
+    });
+  });
+
+  if (!dryRun && pendingUpdates.length) {
+    try {
+      airtableUpdateRecords_(DIANE_AIRTABLE_TABLES.validationQueue, pendingUpdates);
+      results.updated = pendingUpdates.length;
+    } catch (e) {
+      results.updateFailed = pendingUpdates.length;
+      results.error = e.message;
+    }
+  }
+
+  return results;
+}
+
+function previewBackfillTicketDates() {
+  const result = backfillTicketDates_(true);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function runBackfillTicketDates() {
+  const result = backfillTicketDates_(false);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
 }

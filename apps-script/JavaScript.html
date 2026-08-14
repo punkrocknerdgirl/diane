@@ -281,6 +281,7 @@ reloadBatches();
 
 var CURRENT_SCAN_ROTATION=0;
 var SCAN_WHEEL_ZOOM_ACTIVE=false;
+var SCAN_ZOOM_SCALE=1.0;
 function activateScanWheelZoom(event){
  if(event)event.stopPropagation();
  SCAN_WHEEL_ZOOM_ACTIVE=true;
@@ -292,14 +293,27 @@ function deactivateScanWheelZoom(){
  var overlay=document.getElementById('scanPreviewOverlay');
  if(overlay)overlay.classList.remove('active');
 }
-document.addEventListener('click',function(event){
+// Bug fix: removed document-level click handler that was calling deactivateScanWheelZoom()
+// whenever any form field was clicked. That handler caused the scan overlay to reappear
+// over the iframe each time the user typed in a field, making the image go blank.
+// Zoom stays active until navigating to a new ticket or the list view.
+(function(){
  var wrap=document.getElementById('scanPreviewWrap');
- if(wrap&&!wrap.contains(event.target))deactivateScanWheelZoom();
-});
+ if(!wrap)return;
+ // Wheel zoom: scale the iframe with CSS transform for consistent in/out zoom.
+ // preventDefault stops both page scroll and cross-origin iframe scroll from firing.
+ wrap.addEventListener('wheel',function(e){
+  e.preventDefault();
+  e.stopPropagation();
+  var delta=e.deltaY<0?0.15:-0.15;
+  SCAN_ZOOM_SCALE=Math.max(0.4,Math.min(4.0,SCAN_ZOOM_SCALE+delta));
+  applyScanRotation_();
+ },{passive:false});
+})();
 function normalizeScanRotation_(deg){var n=deg%360;if(n<0)n+=360;return n;}
-function applyScanRotation_(){var frame=document.getElementById('scanFrame');var label=document.getElementById('scanRotationLabel');if(!frame)return;var deg=normalizeScanRotation_(CURRENT_SCAN_ROTATION);var scale=(deg===90||deg===270)?0.72:1;frame.style.transform='rotate('+deg+'deg) scale('+scale+')';frame.style.transformOrigin='center center';if(label)label.textContent=deg+'°';}
+function applyScanRotation_(){var frame=document.getElementById('scanFrame');var label=document.getElementById('scanRotationLabel');if(!frame)return;var deg=normalizeScanRotation_(CURRENT_SCAN_ROTATION);var rotScale=(deg===90||deg===270)?0.72:1;frame.style.transform='rotate('+deg+'deg) scale('+(SCAN_ZOOM_SCALE*rotScale)+')';frame.style.transformOrigin='center center';if(label)label.textContent=deg+'°';}
 function rotateScanPreview(delta){CURRENT_SCAN_ROTATION=normalizeScanRotation_(CURRENT_SCAN_ROTATION+delta);applyScanRotation_();}
-function resetScanRotation(){CURRENT_SCAN_ROTATION=0;applyScanRotation_();}
+function resetScanRotation(){CURRENT_SCAN_ROTATION=0;SCAN_ZOOM_SCALE=1.0;applyScanRotation_();}
 function updateBatchSummary_(batch){
  if(!batch)return;
  setTextValue('summaryTicketCount',batch.ticketCount||0);
