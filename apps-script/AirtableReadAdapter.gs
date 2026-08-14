@@ -194,7 +194,7 @@ function mapAirtableValidation_(record, ticketById, parserById, ocrById, parserB
     validationId: final('Validation ID'),
     ticketRecordId: linkedTickets.length ? linkedTickets[0] : '',
     submissionId: '',
-    sourceFileUrl: ticket ? airtableField_(ticket, 'Source File URL') || '' : '',
+    sourceFileUrl: ticket ? (airtableField_(ticket, 'Cleaned File URL') || airtableField_(ticket, 'Source File URL') || '') : '',
     sourceFileName: '',
     reviewStatus: airtableText_(airtableField_(record, 'Review Status')),
     readyForClean: airtableTruthy_(airtableField_(record, 'Processed to Tickets')) ? 'Yes' : 'No',
