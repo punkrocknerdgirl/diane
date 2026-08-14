@@ -1,1 +1,10 @@
 .DS_Store
+
+# Credentials — this repo's remote is PUBLIC, never commit these.
+client_secret*.json
+*service*account*.json
+.clasprc.json
+.env
+.env.*
+*.pem
+*.key
