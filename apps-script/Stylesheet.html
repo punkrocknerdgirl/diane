@@ -132,6 +132,13 @@
   cursor:pointer;
 }
 
+/* Beats the global button:hover rule (element+pseudo-class outranks a bare
+   class selector), which was painting this overlay's background solid
+   near-black on hover, blanking out the scan image underneath. */
+.scan-preview-overlay:hover{
+  background:transparent;
+}
+
 .scan-preview-overlay::after{
   content:"Click to enable zoom";
   position:absolute;
