@@ -306,8 +306,13 @@ function deactivateScanWheelZoom(){
  var wrap=document.getElementById('scanPreviewWrap');
  if(!wrap)return;
  // Wheel zoom: scale the iframe with CSS transform for consistent in/out zoom.
- // preventDefault stops both page scroll and cross-origin iframe scroll from firing.
+ // Only intercepts the wheel event once zoom has been explicitly enabled via the
+ // overlay button. Bug fix: this used to fire unconditionally, so scrolling the
+ // page with the cursor over the scan panel (before zoom was ever enabled) would
+ // shrink the iframe toward its 0.4 floor and block the scroll, making the dark
+ // scan-frame-wrap background show through as a "black" flash.
  wrap.addEventListener('wheel',function(e){
+  if(!SCAN_WHEEL_ZOOM_ACTIVE)return;
   e.preventDefault();
   e.stopPropagation();
   var delta=e.deltaY<0?0.15:-0.15;
