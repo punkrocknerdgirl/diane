@@ -101,6 +101,11 @@ git fetch origin main
 Downloads the latest origin/main reference so local divergence can be inspected before integrating changes. It does not merge or change tracked working files.
 
 ```bash
+git log --all --oneline --diff-filter=A --name-only
+```
+Lists every commit across all refs that *added* a file, with the added filenames. Useful for finding whether a file ever existed in history — including on branches that were never merged.
+
+```bash
 git log --oneline --decorate -8
 ```
 Shows the last 8 commits in compact form with branch/tag labels. Useful right after a push to confirm the new HEAD landed.
@@ -116,9 +121,19 @@ git log -1 --format='%H %ci %s'
 Prints the most recent commit as a single line: full hash, committer date in ISO format, and subject.
 
 ```bash
+git ls-remote origin
+```
+Lists every ref on the remote with its commit hash, including branches that have never been fetched locally. Read-only; touches nothing in the working tree.
+
+```bash
 git ls-remote origin refs/heads/main
 ```
 Reads the current remote commit for main without changing the local working tree; useful when a push is rejected and the remote has advanced.
+
+```bash
+git ls-tree --name-only <ref> <path>
+```
+Lists the files a given ref actually contains at a path, e.g. `git ls-tree --name-only origin/main docs/build-logs/`. Reads the remote-tracking tree directly, so it confirms what is really on origin without checking anything out.
 
 ```bash
 git push origin main
@@ -204,4 +219,8 @@ Prints the full path of the folder you are currently in.
 security add-generic-password -s <service> -a "$USER" -w
 ```
 Stores a secret in the macOS keychain under the given service name, prompting interactively for the value so it never lands in shell history. Retrieve it later with `security find-generic-password -s <service> -w`.
-</content>
+
+```bash
+wc -l <file>
+```
+Prints the line count of a file. Accepts multiple files and prints a total, which makes it a fast way to gauge whether a doc is short enough to read in full.
