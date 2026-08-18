@@ -153,3 +153,19 @@ That is the only open item in the A2 workstream.
 - Scenario F has no working path; `Invoice Batches` is empty.
 - Truck aliases are written but inert until a resolve step consumes
   `All Known Aliases` (priority 3).
+
+---
+
+## Addendum — superseded items
+
+Two statements in this log were true when written and are now superseded. See
+`2026-08-18-D20-scenario-a-cleanup.md` for the full account.
+
+- **"Module 32 not removed from either scenario"** — module 32 was subsequently deleted
+  from **Scenario A** via the Make UI (`lastEdit 2026-08-18T23:47:01.416Z`), following the
+  UI-delete-not-API-push guardrail recorded here. Verified: absent from `flow`, `util`
+  dropped from `usedPackages`, sample and orphan entries cleared, `isinvalid: false`,
+  `run_start_time` occurrences now 0. **A2 still carries module 32** and remains dead code
+  there.
+- **"One open item in the workstream: module 7's empty title"** — now two. A2's module 32
+  removal joins it.
