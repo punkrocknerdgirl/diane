@@ -196,3 +196,65 @@ Then, in order:
 - Vision OCR cross-check for dates using stored `Raw OCR Text` (`fld8twN1aSHmConvn`).
 - `Final Total (Legacy)` (`fld5IN6BntCd4wDJM`) deletion, pending clasp deploy.
 - Scenario F (invoice generation) has no working path; `Invoice Batches` is empty.
+
+---
+
+## Addendum — A2 handoff review, 2026-08-18 (post-checkpoint)
+
+A second handoff doc (`A2-handoff-2026-08-18.md`) raised four work items. Reviewed
+against live Make/Drive/Airtable state. Result: **one real fix (done), three no-ops.**
+
+### Work item 1 — destination folder mismatch: FALSE ALARM, no change made
+
+The handoff states that `1Di0ie_rE0m6f_DMvJfePTI_RyyD4Gpb0` is "the **cleaned images**
+folder, not an intake folder," and concludes that module 6 copies to the wrong place.
+**This is incorrect.** Verified live via Drive `get_file_metadata`:
+
+```
+1Di0ie_rE0m6f_DMvJfePTI_RyyD4Gpb0  →  title: "01 Intake"
+                                       parent: 1b8c0J_… (01 Project Diane)
+```
+
+The cleaned-images folder is a **different** ID — `1UONL7l6idP2e8PPuVT3dpNsq4RgF_qSa`
+(`02 Processing / Diane 2.0 Cleaned Images`), which appears nowhere in A2.
+
+Also incorrect: the claim that module 30 writes to a field that "is *not* `Cleaned File
+ID`" as though that were a defect. `fldNgcAqfpEBBq3Od` is **`Source File ID`** —
+described in the schema as "Google Drive file ID used by Make automation to retrieve
+the source document." That is exactly the right field, and `Cleaned File ID`
+(`fldb3VelUsUn7Gn8P`) is *supposed* to be empty at intake — Scenario B is what fills it.
+
+The handoff's own task 3 asked for a cross-check against Scenario A. A2 passes it:
+A's module 30 writes `fldNgcAqfpEBBq3Od: {{8.id}}` (its Drive upload) and A's module 8
+uploads to `1Di0ie_…`. A2 writes `fldNgcAqfpEBBq3Od: {{6.id}}` and copies to `1Di0ie_…`.
+**Identical pattern.** No blueprint change required, and none was made.
+
+### Work item 2 — `Pulled At` sort field: verified, no change made
+
+`Pulled At` = `fldxvij1FtxYmW82s` on Import Runs, and it is the field module 31 writes
+`run_start_time` to. `flddQcpWCkI12rf6z` is a different field, `Pull From` (the Motive
+`created_after` cutoff). The name resolves.
+
+Method note for future sessions: `get_table_schema` returns IDs and types only, but
+**`list_tables_for_base` returns field names** — that is how this was confirmed.
+Scenario A sorts on the same field name.
+
+### Work item 3 — folder placement: DONE
+
+A2 moved from `folderId: null` into `Diane 2.0` (`folderId: 237340`, alongside A–F) via
+`scenarios_update` with `folderId` only — no blueprint replacement. Re-verified after
+the write: `folderId: 237340`, `isActive: false`, `isinvalid: false`,
+`scheduling: on-demand`. Unchanged otherwise.
+
+### Work item 4 — org/team IDs: already correct, no change made
+
+§13 above already records org `7406940` / team `2196964` correctly. A grep across
+`docs/build-logs/` found **no** document listing `2196964` as the organization ID.
+
+### Still genuinely blocked on Ernie
+
+Adding the `Folder` choice to **`Import Runs.Source System`** (`fldhnN6gDEt9JQOhH`)
+remains required — module 26 filters on it. Adding it to **`Tickets.Source System`**
+(`fldBUCwMAfUzbYOjz`) by hand is harmless belt-and-braces; module 30's `typecast: true`
+should create it, and the handoff's locked-field concern is untested speculation rather
+than an observed failure.
