@@ -206,6 +206,11 @@ git status --short --branch
 Compact one-line-per-file status plus current branch and ahead/behind tracking info against the remote, in a single glance.
 
 ```bash
+grep -c '<pattern>' <file>
+```
+Counts matching lines rather than printing them. The useful case is proving a count is zero — confirming that a variable, module reference, or field name no longer appears anywhere in a fetched Make blueprint before declaring it dead.
+
+```bash
 grep -nE "pattern1|pattern2" <file>
 ```
 Searches a file for either pattern and prints matching line numbers.
@@ -219,6 +224,13 @@ Checks Apps Script JavaScript syntax by sending the .gs source through standard 
 pwd
 ```
 Prints the full path of the folder you are currently in.
+
+```bash
+python3 - <<'PY'
+<script>
+PY
+```
+Runs an inline Python script from a heredoc. Quoting the delimiter as `'PY'` stops the shell expanding `$` and backticks inside the script, which matters when the script contains Make mapping syntax. Used for walking a fetched Make blueprint's nested `routes` / `branches` to pull a single module's mapper without printing the whole file.
 
 ```bash
 python3 -c "import json; json.load(open('<file>'))"

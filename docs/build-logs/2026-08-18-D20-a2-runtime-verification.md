@@ -261,3 +261,61 @@ load-bearing. But do not let it rot: dead modules mislead future sessions, which
 exactly what happened with Scenario D's permanently-unreachable router branch. Remove
 module 32 from both in the same push as the next edit either scenario needs for a real
 reason.
+
+---
+
+## Closing corrections and actions
+
+### Connection-type divergence — RESOLVED, NOT ACTIONABLE. Do not re-open.
+
+An earlier note listed "align A2 onto `8608773` (`google-restricted`) like A/B/C/D" as an
+open consistency item. **It is not.** The divergence is a consequence of module generation,
+not configuration drift, and A2 most likely *cannot* use `8608773` at all:
+
+| Scenario | Drive modules | Parameter spec | Connection |
+|---|---|---|---|
+| A2 | v3 `ActionGetFileList`, `ActionCopyFile`, `ActionUpdateFile` | `account:google` | `10510444` (type `google`) |
+| A / B / C / D | older `uploadAFile`, `getAFile` | `account:google-restricted,google-drive` | `8608773` (type `google-restricted`) |
+
+Different contracts. `8608773` is type `google-restricted` and will almost certainly not
+appear in A2's connection dropdown. Directly confirmed from A2's saved blueprint: module 5's
+`metadata.parameters` declares `{"name": "account", "type": "account:google"}`.
+
+Same root cause as the `account` vs `__IMTCONN__` difference noted above — the v3 Drive
+modules and the older ones are different module generations with different parameter
+shapes. Recorded here so it does not resurface as a phantom cleanup task.
+
+### `Pulled At` field description updated in Airtable
+
+Per the concern that the log is not where anyone would look, the caveat now lives on the
+field itself. Import Runs `tbl8V8VXyLIGtBu9X`, `Pulled At` `fldxvij1FtxYmW82s`,
+description set (Airtable action `act6yCC4Z7BpCRfdo`):
+
+> Timestamp written by Scenario A / A2 module 31 when an import run closes. NOT
+> HOMOGENEOUS ACROSS TIME: rows written before 2026-08-18 carry a run-START time (from the
+> run_start_time variable); rows written after carry a run-CLOSE time (mapped directly from
+> `{{now}}`), seconds to minutes later. Module 26 sorts Import Runs on this field ascending.
+> Safe for ordering one Ready run at a time, but do not use it to compute run duration or to
+> compare timing across the 2026-08-18 boundary — the two populations mean different things.
+
+The sharper framing: the risk is not concurrent Ready runs. It is that the field holds **two
+populations with different meanings**, split at 2026-08-18, and any sort or duration
+calculation silently mixes them.
+
+### Module 32 removal — UI delete, not an API push
+
+Standing recommendation is unchanged (opportunistic removal, folded into the next edit
+either scenario needs anyway), with one constraint added: **when it happens, delete module
+32 through the Make UI, not via `scenarios_update`.** An API push reserializes the entire
+blueprint including the `metadata.expect` / `metadata.restore` surface, which is the
+specific risk that caused an MCP blueprint push to be declined earlier this session. A no-op
+module is not worth that exposure on a load-bearing scenario.
+
+### Open items at close
+
+**One:** module 7's `"title": ""` (`ActionUpdateFile`, Move Original to `_Processed`).
+Present in the saved blueprint, never exercised — every successful move predates it. Watch
+the next real file through `_Processed`; if it lands with a blank filename, remove the key
+entirely rather than setting a value, since a move needs no title.
+
+Everything else from the A2 workstream is closed.
