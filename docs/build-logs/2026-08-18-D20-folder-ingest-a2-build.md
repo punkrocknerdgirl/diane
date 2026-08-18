@@ -258,3 +258,26 @@ remains required — module 26 filters on it. Adding it to **`Tickets.Source Sys
 (`fldBUCwMAfUzbYOjz`) by hand is harmless belt-and-braces; module 30's `typecast: true`
 should create it, and the handoff's locked-field concern is untested speculation rather
 than an observed failure.
+
+---
+
+## Addendum 2 — A2 is now runtime-verified (supersedes the "never executed" statements above)
+
+Every statement in this log asserting that A2 had never run was true when written and is
+now **superseded**. A2 was executed and verified across all four paths on 2026-08-18;
+three runtime defects were found and fixed. See
+`2026-08-18-D20-a2-runtime-verification.md` for the full account.
+
+Summary of what changed in A2 after this log was written:
+
+- Modules 5, 6, 7 repointed from Google connection `8557388` (dead token) to `10510444`.
+- Module 5 `continueWhenNoRes` → `false`, and module 6's filter gained a second condition
+  (`{{5.id}}` exists) so an empty drop folder is handled by logic rather than by erroring.
+- Module 31's `Pulled At` write wrapped in `formatDate(...; "YYYY-MM-DDTHH:mm:ssZ"; "UTC")`
+  to stop intermittent 422s.
+
+The **design** recorded in §13 held up under runtime — key scheme, copy-not-download,
+folder path form, dedupe guard, and the B handoff all behaved as specified. What failed
+was environmental (a dead connection) and two edge cases that schema validation cannot
+reach. That distinction is the useful lesson: `validate_module_configuration` returning
+`valid: true` says the shape is right, not that the thing works.
