@@ -41,6 +41,11 @@ cp <file>.gs /tmp/<file>.js && node --check /tmp/<file>.js
 Syntax-checks a Google Apps Script .gs file by copying it to a .js extension first. `node --check` rejects `.gs` outright with `ERR_UNKNOWN_FILE_EXTENSION`, so the copy is required.
 
 ```bash
+find <dir> -type f \( -iname '*.jpg' -o -iname '*.heic' \) -print0 | xargs -0 <command>
+```
+Runs one command over many matched files at once. Prefer this to `find -exec <command> {} \;`, which spawns a separate process per file and can take minutes on a few thousand files while printing nothing until the whole pipeline finishes — it looks hung when it is merely slow. Add `-mtime -<days>` to limit by modification time, but note that copied or synced files often keep their original timestamp, so a recent file can still look old.
+
+```bash
 gh auth status
 ```
 Shows whether the gh CLI has an active, persistent GitHub login, which account, token scopes, and storage backend (keyring vs. plaintext).
@@ -66,6 +71,11 @@ git commit -m "message"
 Records staged changes as a new commit with a descriptive message. Confirm `git diff --cached --stat` shows only the intended files before running this.
 
 ```bash
+git diff -- <file>
+```
+Shows uncommitted changes in one file compared with the current local commit.
+
+```bash
 git diff --cached --check
 ```
 Checks the currently staged changes for whitespace errors and conflict-marker problems before committing. No output means it passed.
@@ -84,11 +94,6 @@ Checks the current diff for whitespace errors and conflict-marker problems. No o
 git diff --stat
 ```
 Shows a compact summary of changed files and line counts.
-
-```bash
-git diff -- <file>
-```
-Shows uncommitted changes in one file compared with the current local commit.
 
 ```bash
 git diff origin/main -- <file>
@@ -216,9 +221,29 @@ pwd
 Prints the full path of the folder you are currently in.
 
 ```bash
+python3 -c "import json; json.load(open('<file>'))"
+```
+Confirms a JSON file parses before it is sent anywhere. Prints nothing on success and raises with a line and column on failure. Worth running on any hand-authored Make blueprint before a create or update call.
+
+```bash
 security add-generic-password -s <service> -a "$USER" -w
 ```
 Stores a secret in the macOS keychain under the given service name, prompting interactively for the value so it never lands in shell history. Retrieve it later with `security find-generic-password -s <service> -w`.
+
+```bash
+sips -g pixelWidth -g pixelHeight <file>
+```
+Prints the pixel dimensions of an image on macOS. Accepts multiple files in one invocation, which is what makes the `xargs` form above fast. Output is the file path followed by one indented line per property.
+
+```bash
+unzip -l <file>.zip
+```
+Lists the contents of a zip archive without extracting it — name, size, and date per entry. Use this before extracting anything received from outside the repo.
+
+```bash
+unzip -o <file>.zip -d <dir>
+```
+Extracts a zip archive into a target directory. `-o` overwrites existing files without prompting, so point `-d` at a scratch directory rather than the working tree.
 
 ```bash
 wc -l <file>
