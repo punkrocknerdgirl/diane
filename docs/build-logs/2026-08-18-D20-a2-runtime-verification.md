@@ -192,3 +192,72 @@ The google-drive v3 modules store the connection as `"account": <id>` in `parame
 **not** `"__IMTCONN__": <id>` as the Airtable modules do. Both forms appear in this one
 blueprint. Worth knowing before hand-editing a blueprint — writing `__IMTCONN__` on a
 Drive v3 module would not repoint it.
+
+---
+
+## Follow-up — date fix simplified to `{{now}}` in both scenarios
+
+Both changes re-verified against the saved blueprints via `scenarios_get`, not taken
+from report.
+
+| Scenario | Module 31 `Pulled At` (`fldxvij1FtxYmW82s`) | lastEdit | State |
+|---|---|---|---|
+| `A2 - Get Folder Tickets` `5984004` | `{{now}}` | `2026-08-18T23:28:56.595Z` | Inactive, `isinvalid: false` |
+| `A - Get Motive Tickets` `5631564` | `{{now}}` | `2026-08-18T23:29:29.123Z` | Inactive, `isinvalid: false` |
+
+This supersedes the `formatDate(...)` fix recorded above. A2 briefly carried
+`{{formatDate(32.run_start_time; "YYYY-MM-DDTHH:mm:ssZ"; "UTC")}}` (pushed 23:18:25,
+one clean run at 23:18:58) before being simplified.
+
+**Why `{{now}}` is the stronger fix, not merely the shorter one.** The original defect was
+never in the formatting — it was the variable round-trip. Module 32 stores `{{now}}` as a
+*template value*, and the stored variable deserialized inconsistently: sometimes a Date
+(which Make serializes ISO, accepted) and sometimes a display-formatted string
+(`August 18, 2026 7:12 PM`, rejected 422). `formatDate` papered over that by coercing
+whatever came back. `{{now}}` in the mapper removes the round-trip entirely — the value is
+evaluated to a Date at mapping time and never passes through variable storage. It
+eliminates the ambiguity rather than correcting for it.
+
+### Verification status — read this precisely
+
+- **A2: defect proven fixed, current form unrun.** A2's clean 23:18:58 run exercised the
+  `formatDate` version, not `{{now}}`. A2 has not executed since 23:28:56. The failure
+  mode is understood and closed; the exact current mapping has no runtime proof.
+- **A: applied, unverified.** A has not run since the edit. Because the original 422 was
+  **intermittent** — the same mapping succeeded at 23:10:57 and failed at 23:12 — a single
+  clean Motive run will not clear it. Confidence comes from the mechanism above being
+  removed, not from run count.
+
+### Scenario A — what was and was not touched
+
+Confirmed unchanged in A alongside the module 31 edit:
+
+- Module 1 Motive HTTP: `https://api.gomotive.com/v2/documents`, `apiKeyKeychain: 164415`,
+  `authenticationType: apiKey`
+- Module 8 Drive connection: `__IMTCONN__: 8608773` (`google-restricted`) — A was **not**
+  moved onto A2's `10510444`
+- `isActive: false`, `isinvalid: false`
+
+### Consequence — `Pulled At` now records run close, not run start
+
+Both scenarios now stamp `Pulled At` at module 31, which runs on the router's second
+route after route 1 completes — seconds to minutes later than the old `run_start_time`.
+The field's meaning has shifted. Minor, but it matters in one place: **module 26 sorts
+Import Runs on `Pulled At` ascending**, so ordering is now by close time. With one Ready
+run at a time this is inert.
+
+### Module 32 is now dead code in both scenarios
+
+`util:SetVariable2` (`run_start_time`) still executes and still sets the variable, but
+**nothing consumes it.** Verified in A: `run_start_time` appears 4 times in the blueprint,
+all as the bare variable name in the module definition and its metadata — zero
+`{{32.run_start_time}}` references remain. Same in A2, whose only consumer was module 31.
+
+Harmless: one operation per run, no side effects.
+
+**Recommendation — leave it for now, remove opportunistically.** A standalone blueprint
+push to delete a no-op module carries more risk than the operation it saves, and A is
+load-bearing. But do not let it rot: dead modules mislead future sessions, which is
+exactly what happened with Scenario D's permanently-unreachable router branch. Remove
+module 32 from both in the same push as the next edit either scenario needs for a real
+reason.
