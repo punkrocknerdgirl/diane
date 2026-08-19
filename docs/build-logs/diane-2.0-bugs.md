@@ -6,6 +6,58 @@ Entries are listed newest first. Each entry: a title, the date it was found, a s
 
 ---
 
+## Scenario B cannot report its own cleaning failures (retry-cap branch never fires)
+
+**Date found:** 2026-08-18
+**Status:** Open bug — not fixed
+**Where:** Scenario B ("B - Clean Ticket Images", Make scenario ID `5097838`), module 30 (Airtable update, filter "Retry cap reached")
+
+Module 30 is the only path by which B writes a `Cleaning Error` and flips a ticket back to `Needs Clean`. Its filter requires **both** `{{17.tasks[].result.files[].url}}` to not exist **and** `{{22.i}}` to equal `5` — i.e. the export URL is still empty after five polling passes.
+
+That condition only describes a job that *ran and stayed empty*. When the CloudConvert job **errors outright**, the flow never reaches module 30 at all, so nothing is written: no `Cleaning Error`, no `Needs Clean`, and Make still shows a green SUCCESS badge. Surfaced on 2026-08-18 when B's first run against A2-produced files returned SUCCESS with **zero Airtable writes** — module 11 had returned 3 bundles, so the search was fine; the whole batch was silently dropped downstream by an `INVALID_FILENAME` on upload.
+
+Same silent-failure family as Scenario D's `onerror: Ignore` and as the Import Runs that close `Completed` having produced zero tickets.
+
+**Consequence:** a green badge on Scenario B is not evidence that anything was cleaned. Airtable record state is the only reliable signal.
+
+**Possible fix (not applied):** add an error handler on the CloudConvert module (or a route that fires when the job returns an error rather than an empty result) that writes `Cleaning Error` and `Needs Clean`, so failures land in Airtable rather than only in Make History.
+
+**Workaround (current):** after every B run, check Tickets for `Clean Status: Cleaned` and a populated `Cleaned File ID` on the expected count. Do not trust the run status.
+
+---
+
+## Document AI corrupts ticket dates at the year — images are not the cause
+
+**Date found:** 2026-08-18
+**Status:** Open — root cause established, fix not built
+**Where:** Document AI date extraction feeding `Parsed Ticket Date`; downstream guard belongs in Scenario D
+
+Established this session that the recurring bad-date problem is **not** an image-quality or resolution problem. Google Drive's own OCR reads the date correctly off the exact same files Document AI misparses. For ticket 410959, both the A2-copied source image and the B-produced PDF read `DATE 08/11/2026 09:39`; Document AI parsed it as `2026-06-11`.
+
+The full set of seven bad dates from the retired `20260817B` batch:
+
+| Ticket # | Parsed | Actual (likely) |
+|---|---|---|
+| 412078 | `2001-06-01` | ? |
+| 411142 | `2001-08-11` | 2026-08-11 |
+| 412600 | `2001-08-14` | 2026-08-14 |
+| 412722 | `2004-08-14` | 2026-08-14 |
+| 411828 | `2006-06-12` | 2026-08-12 |
+| 411539 | `2020-08-12` | 2026-08-12 |
+| 410959 | `2026-06-11` | 2026-08-11 |
+
+Six of seven are **year** corruption — `2001`, `2004`, `2006`, `2020` — always a plausible-looking year, always wrong. Genuine pixel-level degradation would scatter errors across all four digits rather than consistently producing well-formed but incorrect years.
+
+Two prior hypotheses are now closed: the 32%-downscale theory did not survive (the Motive copies were 1320 × 595, well under the 2048 resize cap, so Resize never touched them), and no higher-resolution original exists — the Photos images are ~160 KB because Messages compressed them on the sending device before they ever reached Ernie.
+
+Also visible in the same OCR snippet: `3224.58 tn` / `24.56 tn` — the known `quantity_tons` sanitization problem, same root.
+
+**Fix needed:** a date-range guard in Scenario D (reject any parsed date outside a sane window around the run date) plus a Vision OCR cross-check using the Raw OCR Text already stored on each ticket. Both were already on the backlog; this finding confirms they are the right path.
+
+**Explicitly not the fix:** image darkening or other preprocessing. The B resize bypass applied this session is correct on its own merits but does nothing for dates.
+
+---
+
 ## Scenario A has no idempotency guard against repeated manual runs
 
 **Date found:** 2026-08-17

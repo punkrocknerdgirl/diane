@@ -41,6 +41,11 @@ cp <file>.gs /tmp/<file>.js && node --check /tmp/<file>.js
 Syntax-checks a Google Apps Script .gs file by copying it to a .js extension first. `node --check` rejects `.gs` outright with `ERR_UNKNOWN_FILE_EXTENSION`, so the copy is required.
 
 ```bash
+diff <(<command-a>) <(<command-b>)
+```
+Compares the output of two commands without writing either to a temp file, using shell process substitution. The practical use is proving whether a local build log and its inbox original are identical, and seeing exactly which sections were added locally if they are not. Requires bash or zsh, not sh.
+
+```bash
 find <dir> -type f \( -iname '*.jpg' -o -iname '*.heic' \) -print0 | xargs -0 <command>
 ```
 Runs one command over many matched files at once. Prefer this to `find -exec <command> {} \;`, which spawns a separate process per file and can take minutes on a few thousand files while printing nothing until the whole pipeline finishes — it looks hung when it is merely slow. Add `-mtime -<days>` to limit by modification time, but note that copied or synced files often keep their original timestamp, so a recent file can still look old.
@@ -211,9 +216,19 @@ grep -c '<pattern>' <file>
 Counts matching lines rather than printing them. The useful case is proving a count is zero — confirming that a variable, module reference, or field name no longer appears anywhere in a fetched Make blueprint before declaring it dead.
 
 ```bash
+grep -n -B<n> -A<n> '<pattern>' <file>
+```
+Prints matching lines with `n` lines of context before and after. Use it on a fetched Make blueprint when a bare match is ambiguous — the surrounding keys usually reveal whether a hit is a live mapper or only a cached `designer.samples` value.
+
+```bash
 grep -nE "pattern1|pattern2" <file>
 ```
 Searches a file for either pattern and prints matching line numbers.
+
+```bash
+grep -rhoE '<pattern>' <dir> | sort -u
+```
+Recursively extracts every distinct substring matching a pattern across a directory, printing only the matches themselves with no filenames. Used to harvest all Airtable table or field IDs mentioned anywhere in the build logs. Add `| uniq -c | sort -rn` in place of `sort -u` to rank them by how often each appears.
 
 ```bash
 node --check < apps-script/Code.gs
@@ -241,6 +256,11 @@ Confirms a JSON file parses before it is sent anywhere. Prints nothing on succes
 security add-generic-password -s <service> -a "$USER" -w
 ```
 Stores a secret in the macOS keychain under the given service name, prompting interactively for the value so it never lands in shell history. Retrieve it later with `security find-generic-password -s <service> -w`.
+
+```bash
+sed -n '<start>,<end>p' <file>
+```
+Prints one line range from a file without loading the whole thing. The reason it matters here: `scenarios_get` output for a Make scenario runs to thousands of lines and is written to a temp file rather than returned, so ranges found with `grep -n` are then read back with this.
 
 ```bash
 sips -g pixelWidth -g pixelHeight <file>
