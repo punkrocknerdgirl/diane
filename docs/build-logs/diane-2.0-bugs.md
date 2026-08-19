@@ -6,6 +6,124 @@ Entries are listed newest first. Each entry: a title, the date it was found, a s
 
 ---
 
+## Scenario F has no broker filter — it will pull a Statewide batch onto the HSG template
+
+**Date found:** 2026-08-19
+**Status:** Open — **highest-priority item**, fix before Statewide batches exist
+**Where:** Scenario F "F - Generate HSG Invoice" (`5908565`), module 1 (Airtable search on Invoice Batches `tbl7nRJsDeKwhpDDu`)
+
+Module 1's only filter is `{Batch Status} = "Ready for Invoice"`. There is nothing in it about HSG. The scenario's "HSG-ness" is entirely cosmetic and downstream — a hardcoded template file ID, a hardcoded output folder, and the literal string "HSG" in the filename template.
+
+**Consequence: once Statewide batches exist, running F-HSG will pull an ST batch and render it on the HSG template**, producing a wrong invoice for a real customer with no error anywhere. This is the only currently-open item that can silently produce a wrong invoice.
+
+This also **corrects older project notes**, which described a per-broker-filter architecture on F. The notes were wrong; the blueprint is right.
+
+**Fix (not applied):** require the batch's Broker to be HSG (`rec4It14Oku2LyXmX`) in module 1's formula, in addition to the status check.
+
+---
+
+## Approval → Tickets write-back does not exist
+
+**Date found:** 2026-08-19
+**Status:** Open — unowned gap, blocks every future invoice
+**Where:** Apps Script review form → Tickets `tbloTlWdo1f4hFKXh`; consumed by Scenario F module 3
+
+**This corrects an earlier claim in this project's notes.** A past session asserted that approving in the Apps Script review form writes final values through to the Tickets table. It does not. Observed on the first end-to-end invoice run: approval flipped `Review Status` to Approved and **nothing else**. All 32 Ticket records remained completely empty.
+
+Nothing owns this step — not the Apps Script, not any Make scenario. It was caught only because Scenario F reads **Tickets** (not Validation Queue) for its line items; otherwise F would have produced two invoices with 32 blank line rows and no error.
+
+Fields that must be written for F to work: Ticket Number, Ticket Date, Quantity, Rate, Line Total, Truck Billing Name, Customer / Job, Origin, Destination, PO Number, Work Order / Order.
+
+**Workaround used once (2026-08-19):** written by hand via the Airtable API — 2 batched update calls, 32 records, 11 fields each. Not repeatable at volume.
+
+**Fix needed:** either extend the Apps Script approval handler or build a Make scenario for the write-back.
+
+Note: `Ticket Status` and `Ready for Billing` were deliberately **not** written — both are locked selects whose valid option names are unknown, and F ignores both.
+
+---
+
+## Duplicate tickets are no longer caught anywhere — the dedupe layer was lost with Scenario A
+
+**Date found:** 2026-08-19
+**Status:** Open — three-layer defence agreed, **none built**
+**Where:** A2 (`5984004`) intake keying; D (`5251400`); F (`5908565`) module 5
+
+Ticket **411264** appeared twice in the first end-to-end run, from two different source images. It was caught **by eye during review** — no system check exists.
+
+**Root cause:** Scenario A keyed intake on Motive's stable document/attachment ID, so the same ticket submitted twice hit the same Import Key and was rejected for free. **A2 keys on Drive file ID**, and every drag out of Photos mints a new one. Retiring A silently retired the dedupe guarantee with it.
+
+Two distinct cases needing different defences:
+
+1. **Same photo exported twice** — byte-identical. Catchable at A2 *before* OCR cost if a content hash is available. The Drive API exposes `md5Checksum`; **unverified whether Make's `ActionGetFileList` surfaces it.** `fileSize` is available as a weaker signal.
+2. **Same ticket photographed twice** — different bytes. No file-level check can catch it. The only real identity is the ticket number, which does not exist until D has run. **D is the only possible place.**
+
+Agreed three-layer defence, none built:
+
+| Layer | Where | Purpose |
+|---|---|---|
+| 1 | A2 | checksum match — kill byte-identical re-exports pre-OCR |
+| 2 | D | ticket-number match → set `Needs Human Review?` (`fld9ykl7QdHeZox4b`, exists, unwritten) |
+| 3 | **F module 5** | **hard-fail if any ticket number appears twice — the money guard** |
+
+**Layer 3 is the important one and the cheapest** — module 5 already holds the entire ticket array in JavaScript before it writes anything to the sheet.
+
+**Domain caveat:** duplicate ticket numbers across *different quarries* can be legitimate (numbering is per-scale — see the ticket-number entry below). Within one broker and one week they are not.
+
+---
+
+## A Make module can show empty in the editor while the stored blueprint holds a value
+
+**Date found:** 2026-08-19
+**Status:** Standing hazard — awareness only
+**Where:** Scenario F (`5908565`) module 6 (`google-drive:copyAFile`); potentially any module
+
+Module 6 was returning 404 on `copyAFile`. Both the template file ID and the destination folder were valid and accessible. The actual cause: **the module's "Original File ID" field was empty in the editor — it was copying file ID `""`.** The stored blueprint *did* contain the ID. The field appears to have been orphaned when "Select the Method" was set to "Enter manually".
+
+Fixed by re-entering the value manually in the UI.
+
+**This is the same class of problem as the editor-tab-overwrite hazard: the API view and the editor view disagreeing about what is actually configured.** The practical rule: **do not treat a fetched blueprint as proof that a module is correctly set up.** Verify config in the UI when a module fails in a way the blueprint cannot explain.
+
+---
+
+## `Do Not Bill` blocks the whole batch approval, not just the flagged record
+
+**Date found:** 2026-08-19
+**Status:** Known behaviour — workaround established, not a fix
+**Where:** Apps Script review form batch approval
+
+Flagging a single ticket `Do Not Bill` prevents the **entire** Review Batch from being approved, not just that ticket.
+
+**Correct pattern for excluding one ticket:** unlink it from the Review Batch and set `Batch Lock` on it (so Scenario E does not simply re-batch it), rather than flagging it in place.
+
+---
+
+## Invoice Batch creation has no automated owner
+
+**Date found:** 2026-08-19
+**Status:** Open — permanent manual step until built
+**Where:** Invoice Batches `tbl7nRJsDeKwhpDDu`
+
+No Make scenario creates Invoice Batch records. They were created by hand for the first invoice run. Scenario F consumes them but does not create them, and nothing upstream does either.
+
+Also noted while building them: **the invoice number convention is `BBYYMMDD##` with a TWO-letter broker code** — `HS`, not `HSG`. The Brokers table `Broker Code` field stores `HSG` (three letters). These are different things and must not be conflated.
+
+---
+
+## Scenario F module 5 writes the footer only when ticketCount > 9, and duplicates Driver / Truck
+
+**Date found:** 2026-08-19
+**Status:** Open — cosmetic on the current template, wrong on short invoices
+**Where:** Scenario F (`5908565`) module 5 (JS)
+
+Two issues in the same block:
+
+1. **Footer and summary formulas (`D7`, `H6`, `H7`, plus a rewritten footer row) are only written when `ticketCount > 9`.** For nine or fewer tickets the code relies on the template's own formulas being correct. That happens to hold today, but it makes the output dependent on template state rather than self-contained. Should always write them.
+2. **`Driver / Truck` is written whole into both `D8` and `H8`.** D8 should get the driver name and H8 the truck. Currently both show the full `"David Clifton / 03"` string.
+
+Related template gotcha, already fixed in the template itself: formatting only extended to row 20, so rows 21+ rendered raw (`20` instead of `$20.00`). **The Sheets API writes values, not formats** — template formatting must already extend far enough down to cover the largest expected line count.
+
+---
+
 ## Make filters halt the bundle for the whole downstream chain, not just the filtered module
 
 **Date found:** 2026-08-19
@@ -83,6 +201,8 @@ Three things sharpened after the diagnostics work:
 
 Also corrected: the only populated clue field on the 13 Dispatch rows is **`Job`**. `Customer`, `Origin`, `Destination`, `PO Number` and `Work Order` are all empty, and `Rate` is set on exactly one row. An earlier checkpoint could not distinguish `Customer` from `Job` here; it is `Job`.
 
+**Update 2026-08-19 (first invoice run) — Stage 3 is effectively answered: populate `Origin`.** A new dispatch record `DSP_20260810_MICHELSDATAHUBBARD_01` (`recclWWJfR4LiurbD`) was created with Origin `Canfield` and Destination `Hubbard, TX`, and the two colliding migration stubs (`_03` "Hubbard", `_06` "Michels Data") were closed first so their first tokens could not collide. Of the 32 tickets that then matched, **about four matched on `Canfield` alone** — OCR had lost "Michels" entirely on those. Without Origin populated they would have gone unassigned. **Populating Origin is load-bearing, not cosmetic.** Ash Grove ×3, Tiseo ×2 and Sinacola ×2 were deliberately left Active and still mutually ambiguous, as the real test of the ambiguous branch.
+
 **Now visible:** Scenario E writes `Dispatch Match Notes` and `Dispatch Assignment Source` to the Validation Queue record on every pass, so an ambiguous match is no longer silent. The ambiguous branch is **untested** — it needs a real non-Michels ticket. Note also that diagnostics are written on pass-through only; records already carrying a Review Batch link are skipped by module 2's formula and are never backfilled. Full account in `2026-08-19-D20-dispatch-match-visibility.md`.
 
 ---
@@ -90,7 +210,7 @@ Also corrected: the only populated clue field on the 13 Dispatch rows is **`Job`
 ## Scenario E writes `""` into the currency `Rate` field and dies mid-run
 
 **Date found:** 2026-08-19
-**Status:** Open — not fixed; worked around in data
+**Status:** **FIXED 2026-08-19** — `?? ""` changed to `?? null` in module 24, with an inline comment on the line explaining why so it does not get "tidied" back. Verified in the saved blueprint (`lastEdit 2026-08-19T03:40:45Z`).
 **Where:** Scenario E (`5721872`), module 24 (JS) → module 29 (Review Batch create), field `fldWH1pIFLrQcRW05`
 
 Module 24's JS ends with:
@@ -114,6 +234,10 @@ The other `?? ""` defaults in the same block (Job, PO, Work Order, Origin, Desti
 **Fix (not applied):** change `?? ""` to `?? null` on the Rate line. One character.
 
 **Workaround (current):** ensure every dispatch record carries a real rate before running E. In normal operation dispatches are created with a rate up front, so this only fires on a dispatch missing one.
+
+**How it actually fired (2026-08-19):** the first end-to-end invoice run put 33 tickets through E, one of which (`410416`) matched no dispatch at all. That was the first time an unresolved ticket had ever reached module 29's batch-create, and E died there. The bug had been latent since module 24 was written — it would equally have fired on the first ambiguous Ash Grove ticket.
+
+**Diagnosis came straight from the Dispatch Match Notes added hours earlier**: five records showed `resolved ... first_pass_single` and the failing one showed nothing, which pointed at the null-resolution path in one step. The diagnostics layer paid for itself the same night it was built.
 
 ---
 
