@@ -6,6 +6,84 @@ Entries are listed newest first. Each entry: a title, the date it was found, a s
 
 ---
 
+## Dispatch aliases stored as separate records make matching ambiguous by construction
+
+**Date found:** 2026-08-19
+**Status:** Open — interim data fix applied for one job, proper fix needs a schema change
+**Where:** Dispatch table `tblnXClSQImZ22vCG`; Scenario E (`5721872`) modules 18 and 24
+
+The Dispatch table holds each alias variant of a job as its **own record**. Scenario E's matcher (module 24) uses `keywordMatches`, which requires only the **first meaningful token** (stemmed) of a dispatch clue to appear in the ticket's OCR text. So every alias sharing a first token matches the same ticket, and the ticket ends up with multiple candidates.
+
+The tie-break (`clueMatches`, strict full-phrase on Origin) then runs — but **Origin is empty on every record in the Dispatch table**, verified directly. It returns false for all candidates, `resolutionStatus` becomes `"ambiguous"`, and the batch key falls back to the Validation ID, which produces **one standalone batch per ticket**.
+
+That is the mechanism behind the four orphaned Review Batches from the 2026-08-10 run. **It is structural, not the one-off OCR misread previously assumed.** Any job with more than one active alias sharing a first meaningful token is ambiguous by construction.
+
+Worked example — the Michels Data Hubbard job had five active aliases; four shared `MICHELS` or `DATA`:
+
+| Alias | First token | Matched our tickets? |
+|---|---|---|
+| `MICHEL'S DATA HUBBARD` | MICHELS | ✓ |
+| `MICHELS DATA` | MICHELS | ✓ |
+| `MICHELS DATA HUBBARD` | MICHELS | ✓ |
+| `DATA HUBBARD` | DATA | ✓ |
+| `HUBBARD` | HUBBARD | ✗ |
+
+**Interim fix applied (data, not code):** four Michels aliases closed (`_01`, `_02`, `_04`, `_05`), leaving `_06` "Michels Data" (`recJIahzUwiSpx0q3`) as the single matcher — its note records that it was created without the apostrophe specifically to match Canfield's OCR rendering. `_03` "HUBBARD" is also still Active but is harmless, since its first token never appears in our OCR.
+
+**This trades recall for precision.** If a future ticket's OCR renders the job as `DATA HUBBARD` without `MICHELS`, it will no longer match and will produce a standalone batch.
+
+**Same latent problem still active for:** Ash Grove (3 aliases — "Ash Grove", "Ash Grove Cement Company", "Ash Grove Co", all first token `ASH`) and Tiseo (2 — "Tiseo Paving", "Tiseo"). Sinacola has 2 aliases ("Mario Sinacola", "Sinacola") but they do **not** share a first token, so that pair is less exposed.
+
+**Proper fix (backlog):** aliases should be multiple values on **one** dispatch record, not separate records — recall without ambiguity. Requires an Airtable schema change plus a change to module 24's JS.
+
+**Also worth deciding:** Origin cannot serve as a tie-break while it is empty on every dispatch record. Either populate it or stop relying on it.
+
+---
+
+## Scenario E writes `""` into the currency `Rate` field and dies mid-run
+
+**Date found:** 2026-08-19
+**Status:** Open — not fixed; worked around in data
+**Where:** Scenario E (`5721872`), module 24 (JS) → module 29 (Review Batch create), field `fldWH1pIFLrQcRW05`
+
+Module 24's JS ends with:
+
+```js
+const resolvedDispatchRate = resolvedDispatch?.dispatchRate ?? "";
+```
+
+The `?? ""` default writes an empty string into `fldWH1pIFLrQcRW05`, confirmed by schema to be a **currency** field (precision 2, symbol `$`). Airtable rejects `""` on numeric fields, and E dies at module 29 with:
+
+```
+[422] Field "Rate" cannot accept the provided value
+```
+
+This is the identical failure shape to the `Parsed Ticket Date` `422` found the same night in Scenario D — see the entry below on empty strings and date fields.
+
+The other `?? ""` defaults in the same block (Job, PO, Work Order, Origin, Destination) all target `singleLineText` fields and are safe. **Rate is the only numeric target.**
+
+**Consequence:** the failure mode is disproportionate to its likelihood. E dies mid-run, no Review Batch is created, and the affected tickets sit in Validation Queue looking perfectly healthy — nothing marks them as stranded.
+
+**Fix (not applied):** change `?? ""` to `?? null` on the Rate line. One character.
+
+**Workaround (current):** ensure every dispatch record carries a real rate before running E. In normal operation dispatches are created with a rate up front, so this only fires on a dispatch missing one.
+
+---
+
+## Scenario E computes Broker, Truck and Driver but never writes them to the Review Batch
+
+**Date found:** 2026-08-19
+**Status:** Open — needs a decision, not obviously a bug
+**Where:** Scenario E (`5721872`), module 24 (JS) → module 29 (Review Batch create)
+
+Module 24 resolves and returns `resolvedDispatchBrokerRecordId`, `resolvedDispatchTruckRecordId` and `resolvedDispatchDriverRecordId` from the matched dispatch. **Module 29's record mapping references none of them** — it writes Review Batch Key, Job, Rate, PO Number, Work Order, Origin, Destination, Status and the Validation Queue link, and nothing else.
+
+So the Review Batch created on 2026-08-19 carries no Broker, Truck, or Driver link, and no batch ever has. Session notes have described Broker as flowing from the matched dispatch; it does not.
+
+**Decision needed:** either map the three onto the Review Batch record in module 29, or drop the computation from module 24 so the JS stops implying a linkage that doesn't exist.
+
+---
+
 ## Open Make editor tab silently clobbers an MCP blueprint push
 
 **Date found:** 2026-08-19
@@ -41,7 +119,7 @@ Because module 13 carries `onerror: Ignore`, the rejection was swallowed and the
 
 **Fix applied:** use `null`, not `emptystring`. Make then omits the key entirely and the record is created with a blank date. Module 27's quantity mapping already behaves this way when its regex finds nothing, which is what suggested the fix.
 
-**Standing rule:** never map `emptystring` into an Airtable date field.
+**Standing rule:** never map `emptystring` (or a JS `?? ""` default) into an Airtable date, number, or currency field. Use `null` so Make omits the key. The same shape bit again the same night in Scenario E's `Rate` mapping — see that entry above.
 
 **Still open underneath this:** `onerror: Ignore` on Scenario D modules 5 and 13 is now *demonstrated* — not just suspected — to swallow a real `422` and drop records while reporting SUCCESS. Same silent-failure family as Scenario B's retry-cap branch and the Import Runs that close `Completed` having produced zero tickets.
 
@@ -209,5 +287,7 @@ The four places that must be kept in sync with Airtable:
 Module 18 pulls back every Active Dispatch record (up to 10) for every single ticket run, then modules 20 and 23 iterate and aggregate over all of them per ticket. With ~12 Active Dispatches × 29 tickets in one run, that's real repeated work on every execution — the same Active Dispatch list gets re-fetched and re-processed once per ticket instead of once per run.
 
 This is a design cost, not a functional bug — the matcher still produces correct behavior when it works. Flagged for later optimization: cache the Active Dispatch list once per scenario run instead of re-pulling it per ticket, or reduce how many Active Dispatches exist at once. Not the priority while the matcher inconsistency (see below, once logged) is unresolved.
+
+**Update 2026-08-19:** the matcher inconsistency referenced below is now root-caused — see "Dispatch aliases stored as separate records make matching ambiguous by construction" above. This efficiency item remains deferred.
 
 **Next action:** Revisit once the matcher itself is fixed and validated. Consider restructuring Scenario E so the Active Dispatch list is fetched once and passed to a per-ticket iterator, rather than re-queried inside the per-ticket loop.
