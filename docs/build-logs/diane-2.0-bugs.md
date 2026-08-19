@@ -6,10 +6,43 @@ Entries are listed newest first. Each entry: a title, the date it was found, a s
 
 ---
 
+## Make filters halt the bundle for the whole downstream chain, not just the filtered module
+
+**Date found:** 2026-08-19
+**Status:** Standing Make behaviour — must be designed around, not fixed
+**Where:** Any Make scenario; hit while adding dispatch-match diagnostics to Scenario E (`5721872`)
+
+Recorded because it produces a bug that looks nothing like its cause. In Make, when a module's filter rejects a bundle, that bundle stops there and **every module after it in the same chain is skipped** — the filter does not merely skip its own module.
+
+Surfaced while wiring the dispatch-match diagnostics into Scenario E. The obvious placement was inline: module 24 → new writes → existing 27/28 batch-creation chain. That would have meant any ticket rejected by the new filters (`Dispatch Lock` checked, or match unresolved) never reached 27/28 at all, and would have been **silently denied a Review Batch** — a worse failure than the invisibility being fixed.
+
+**Design rule:** branch before filtering when later modules must still run for the filtered-out cases. Scenario E now uses router `39` after module 24 to isolate the diagnostics chain (route B: `40`/`41`/`42`) from the batch-creation chain (route A: `27`/`28` → `29` or `36`+`37`).
+
+---
+
+## Adjacent locked single selects with near-identical option sets fail silently
+
+**Date found:** 2026-08-19
+**Status:** Standing hazard — no fix, awareness only
+**Where:** Validation Queue `tblbiwkOS9LDi5yaV` — `Dispatch Assignment Source` (`fldIRLWXvqnkz04fE`) and `Batch Assignment Source`
+
+Two adjacent fields with almost the same option list, differing only in the first option:
+
+| Field | Options |
+|---|---|
+| `Dispatch Assignment Source` | `Automatic` / `Manual` / `Unassigned` |
+| `Batch Assignment Source` | `Auto` / `Manual` / `Unassigned` |
+
+Both are locked selects. With `typecast: false`, writing `Auto` into `Dispatch Assignment Source` (or `Automatic` into `Batch Assignment Source`) **fails silently** — no error surfaces, the value simply does not land.
+
+**Workaround:** check the option list before writing to either field, and verify the stored value in Airtable afterwards rather than trusting the run.
+
+---
+
 ## Dispatch aliases stored as separate records make matching ambiguous by construction
 
 **Date found:** 2026-08-19
-**Status:** Open — interim data fix applied for one job, proper fix needs a schema change
+**Status:** Open — matching still unfixed, but the failure is now **visible** in Airtable as of 2026-08-19 (see the update at the end of this entry)
 **Where:** Dispatch table `tblnXClSQImZ22vCG`; Scenario E (`5721872`) modules 18 and 24
 
 The Dispatch table holds each alias variant of a job as its **own record**. Scenario E's matcher (module 24) uses `keywordMatches`, which requires only the **first meaningful token** (stemmed) of a dispatch clue to appear in the ticket's OCR text. So every alias sharing a first token matches the same ticket, and the ticket ends up with multiple candidates.
@@ -37,6 +70,20 @@ Worked example — the Michels Data Hubbard job had five active aliases; four sh
 **Proper fix (backlog):** aliases should be multiple values on **one** dispatch record, not separate records — recall without ambiguity. Requires an Airtable schema change plus a change to module 24's JS.
 
 **Also worth deciding:** Origin cannot serve as a tie-break while it is empty on every dispatch record. Either populate it or stop relying on it.
+
+### Update — 2026-08-19 (dispatch match visibility session)
+
+Three things sharpened after the diagnostics work:
+
+1. **The origin tie-break is dead code, not merely unhelpful.** `clueMatches` is called on `dispatchOrigin`; Origin is empty on every row, so `getMeaningfulTokens` returns `[]` and the function returns `false` unconditionally. `originMatchedDispatches.length` is always `0`, never `1`. **Every multi-candidate case is unconditionally ambiguous.** The tie-break has never fired and cannot fire in the current data state.
+
+2. **Adding rows to Dispatches makes this worse, not better.** Every extra row sharing a first meaningful token adds a collision. This inverts the intuitive fix — do not add alias rows to improve recall.
+
+3. **The proper fix is no longer "move aliases onto one record."** That framing (which this entry originally carried) implied a schema change. Two cheaper approaches are now preferred, to be chosen after observing a real ambiguous note in production: populate `Origin` on the Dispatch rows so the existing tie-break goes live; or change selection so candidates sharing a Dispatch ID group prefix (`ASHGROVE` / `TISEO` / `SINACOLA`) are treated as **redundancy rather than ambiguity**, with the most specific alias winning.
+
+Also corrected: the only populated clue field on the 13 Dispatch rows is **`Job`**. `Customer`, `Origin`, `Destination`, `PO Number` and `Work Order` are all empty, and `Rate` is set on exactly one row. An earlier checkpoint could not distinguish `Customer` from `Job` here; it is `Job`.
+
+**Now visible:** Scenario E writes `Dispatch Match Notes` and `Dispatch Assignment Source` to the Validation Queue record on every pass, so an ambiguous match is no longer silent. The ambiguous branch is **untested** — it needs a real non-Michels ticket. Note also that diagnostics are written on pass-through only; records already carrying a Review Batch link are skipped by module 2's formula and are never backfilled. Full account in `2026-08-19-D20-dispatch-match-visibility.md`.
 
 ---
 
