@@ -6,6 +6,73 @@ Entries are listed newest first. Each entry: a title, the date it was found, a s
 
 ---
 
+## Open Make editor tab silently clobbers an MCP blueprint push
+
+**Date found:** 2026-08-19
+**Status:** Open hazard — no technical fix, procedural workaround in force
+**Where:** Any `scenarios_update` push via the Make MCP connector; observed on Scenario D (`5251400`)
+
+An open Make scenario tab holds its own in-memory copy of the blueprint. Running the scenario from that tab writes the stale in-memory version back over anything that was pushed via the API in the meantime — silently, with no conflict warning.
+
+Observed directly: MCP push at `02:04:03`, confirmed landed by an immediate re-fetch; then a "Run once" from an already-open editor tab; `lastEdit` moved to `02:06:18`, the pushed mappings had reverted to their pre-push state, and a `designer.samples` block reappeared. The guard existed for roughly two minutes and was destroyed by the run that was meant to test it. A hard refresh of the tab did not show the pushed value either.
+
+**Workaround (required procedure for every API push to Make):**
+1. Close the scenario tab entirely.
+2. Push via `scenarios_update`.
+3. Re-fetch to confirm it landed.
+4. Reopen the scenario and visually confirm the mapping renders correctly.
+5. Only then run.
+
+Related: pushing rather than pasting is itself the correct move, because Make's UI token editor mangles pasted IML expressions (the July `get(split(...))` incident, where `; 6)` was stranded outside the `}}`). The API push renders correctly every time.
+
+**Note on scope:** `scenarios_update` is safe on Scenario D specifically because D's blueprint carries no `expect` / `restore` / `interface` metadata. Scenarios A and B carry heavy per-module metadata; UI edits remain the correct route for those.
+
+---
+
+## Airtable rejects `""` on a date field, and `onerror: Ignore` turns that into a silent record drop
+
+**Date found:** 2026-08-19
+**Status:** Fixed for the date guard (`null` instead of `emptystring`) — the underlying `onerror: Ignore` hazard remains open
+**Where:** Scenario D (`5251400`), module 13 (Parser Outputs create) and module 14 (Validation Queue create)
+
+The first working version of the Scenario D date guard wrote `emptystring` when it rejected a date. Airtable refused it: `[422] Cannot parse date value "" for field Parsed Ticket Date`. A date field wants `null` or a valid date, never an empty string.
+
+Because module 13 carries `onerror: Ignore`, the rejection was swallowed and the **entire bundle was dropped** — taking module 14 with it, since 14 maps `{{13.id}}`. Two tickets produced no records at all and the scenario reported SUCCESS. That is reject-and-block, silently — the exact opposite of the specified reject-and-flag behaviour.
+
+**Fix applied:** use `null`, not `emptystring`. Make then omits the key entirely and the record is created with a blank date. Module 27's quantity mapping already behaves this way when its regex finds nothing, which is what suggested the fix.
+
+**Standing rule:** never map `emptystring` into an Airtable date field.
+
+**Still open underneath this:** `onerror: Ignore` on Scenario D modules 5 and 13 is now *demonstrated* — not just suspected — to swallow a real `422` and drop records while reporting SUCCESS. Same silent-failure family as Scenario B's retry-cap branch and the Import Runs that close `Completed` having produced zero tickets.
+
+---
+
+## Document AI extracts the wrong quantity value entirely (not a sanitization problem)
+
+**Date found:** 2026-08-19
+**Status:** Open — no guard built
+**Where:** Document AI `quantity_tons` extraction feeding Scenario D module 27, then `Parsed Quantity` / `Final Quantity`
+
+On the same three-ticket batch as the date guard work, Document AI returned `616.53` for one ticket whose actual net load was `24.66` — that figure is the **running scale total** printed on the ticket, not the net load. Another ticket returned nothing at all.
+
+Module 27's regex sanitizer (`^-?(?<qty>\d+(?:\.\d+)?)`, `continueWhenNoRes: true`) works correctly — it strips unit suffixes and passes a blank through rather than erroring. It cannot help when the wrong number is picked off the page in the first place.
+
+**Possible fix (not applied):** a plausibility-range guard on the same shape as the date guard — a load is realistically 20–30 tons, so anything outside that band is blanked and flagged for manual keying rather than written.
+
+---
+
+## Scenario C `Processing File URL` is never populated
+
+**Date found:** 2026-08-19
+**Status:** Open — cosmetic, deliberately not fixed
+**Where:** Scenario C, modules 45 and 47 (mapped from `` {{43.`Source File URL`}} ``), module 43 (Airtable search)
+
+Modules 45 and 47 map `Processing File URL` from module 43's `Source File URL`, but module 43's output-fields list never requests that field, so the mapping resolves to nothing and the column stays empty on every run.
+
+Nothing downstream reads the field. Logged so it isn't rediscovered as a mystery later; fixing it means adding `Source File URL` to module 43's field list.
+
+---
+
 ## Scenario B cannot report its own cleaning failures (retry-cap branch never fires)
 
 **Date found:** 2026-08-18
@@ -26,10 +93,11 @@ Same silent-failure family as Scenario D's `onerror: Ignore` and as the Import R
 
 ---
 
-## Document AI corrupts ticket dates at the year — images are not the cause
+## Document AI corrupts ticket dates at the year — OCR itself is the weak link
 
 **Date found:** 2026-08-18
-**Status:** Open — root cause established, fix not built
+**Status:** Partially mitigated 2026-08-19 (year guard live in Scenario D) — month misreads still pass
+**Corrected 2026-08-19:** the original conclusion below ("images are not the cause", "Document AI corrupts") was overstated. See the correction at the end of this entry.
 **Where:** Document AI date extraction feeding `Parsed Ticket Date`; downstream guard belongs in Scenario D
 
 Established this session that the recurring bad-date problem is **not** an image-quality or resolution problem. Google Drive's own OCR reads the date correctly off the exact same files Document AI misparses. For ticket 410959, both the A2-copied source image and the B-produced PDF read `DATE 08/11/2026 09:39`; Document AI parsed it as `2026-06-11`.
@@ -55,6 +123,23 @@ Also visible in the same OCR snippet: `3224.58 tn` / `24.56 tn` — the known `q
 **Fix needed:** a date-range guard in Scenario D (reject any parsed date outside a sane window around the run date) plus a Vision OCR cross-check using the Raw OCR Text already stored on each ticket. Both were already on the backlog; this finding confirms they are the right path.
 
 **Explicitly not the fix:** image darkening or other preprocessing. The B resize bypass applied this session is correct on its own merits but does nothing for dates.
+
+### Correction — 2026-08-19
+
+The conclusion above rested on Google Drive's `contentSnippet` OCR reading `08/11/2026` correctly off ticket 410959. That was one data point, and it did not hold up.
+
+When Scenario C ran **Google Cloud Vision** over the same files at full resolution, Vision misread 2 of 3: `410959` came back `06/11/2026` (month wrong) and `412722` came back `08/14/2006` (year wrong); only `412600` was right. Document AI's `2026-06-11` for 410959 **matches Vision's `06/11/2026` exactly** — Document AI was faithfully parsing what OCR handed it, not corrupting anything on that ticket.
+
+Drive's `contentSnippet` and Cloud Vision are different Google OCR products and they disagree on the same file. One correct read was treated as proof the image was clean; it was really evidence that the date region is marginal enough for two engines to land differently. The observed confusions are `8`→`6` and the `2` in `2026`→`0`.
+
+Two consequences:
+
+- **The Vision OCR cross-check is dead as designed.** It cannot validate Document AI when it shares the same failure mode. Removed from the backlog.
+- **Resolution is definitively not the variable.** Document AI run against the full-resolution originals produced byte-identical wrong dates to the compressed Motive copies (`2026-06-11`, `2004-08-14`, and a blank). The Scenario B resize bypass remains correct on its own merits but has no bearing on date accuracy.
+
+Also ruled out: **confidence scores are useless as a guard signal.** The extractor returned `"confidence": { "ticket_date": 0.999998 }` on 410959's wrong date. Any guard keyed on confidence would pass it straight through.
+
+**What was built instead (2026-08-19):** a year-only range guard on Scenario D modules 13 and 14, verified live against three tickets — rejects the value, writes `null`, keeps the record, flags it for manual keying. Month misreads such as `2026-06-11` still pass; widening to a rolling window anchored on the Import Run date is the next step. Full account in `2026-08-19-D20-scenario-d-date-guard.md`.
 
 ---
 
