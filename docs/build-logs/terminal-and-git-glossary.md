@@ -11,6 +11,18 @@ adding a new entry, insert it in alphabetical order rather than appending to
 the bottom.
 
 ```bash
+awk 'NR==<line>{while((getline l < "<insert-file>")>0) print l} {print}' <file> > <tmp> && mv <tmp> <file>
+```
+Inserts the contents of one file into another at a known line number, leaving everything else byte-identical. Used to add a new entry at the top of a newest-first log without rewriting the file. `awk` cannot edit in place, hence the temp file and `mv`. Confirm the insertion point with `grep -n` first, and re-check surrounding blank lines afterward — inserting before a line does not add one.
+
+```bash
+cat > <file> <<'EOF'
+<content>
+EOF
+```
+Writes a whole file in one shot from a heredoc. Quoting the delimiter as `'EOF'` stops the shell expanding `$`, backticks, and `!` inside the content, which is essential when writing a build log containing Make mapping syntax like `{{26.Pull From}}`. Without the quotes those get silently mangled. Overwrites the target outright; use `>>` to append.
+
+```bash
 cd /Users/erniehathaway/Projects/diane
 ```
 Moves Terminal into the Diane repository folder.
@@ -56,6 +68,11 @@ gh auth status
 Shows whether the gh CLI has an active, persistent GitHub login, which account, token scopes, and storage backend (keyring vs. plaintext).
 
 ```bash
+git add <file>
+```
+Stages one specific file for the next commit. Name files explicitly rather than using `git add -A` or `.` — the Diane checkout habitually carries unrelated modified and untracked files that must not ride along in a checkpoint commit. Verify with `git diff --cached --stat` before committing.
+
+```bash
 git branch --show-current
 ```
 Prints the name of the branch currently checked out.
@@ -69,6 +86,13 @@ Creates a safety branch pointing at the current commit without switching branche
 git cherry-pick <commit>
 ```
 Copies one specific commit onto the current branch.
+
+```bash
+git commit -F - <<'MSG'
+<message>
+MSG
+```
+Commits with a multi-line message read from standard input, avoiding the repeated `-m` flags that produce awkward paragraph breaks. The quoted `'MSG'` delimiter keeps backticks and `$` in the message literal. Useful for checkpoint commits where the body needs to list several distinct changes.
 
 ```bash
 git commit -m "message"
@@ -229,6 +253,11 @@ Searches a file for either pattern and prints matching line numbers.
 grep -rhoE '<pattern>' <dir> | sort -u
 ```
 Recursively extracts every distinct substring matching a pattern across a directory, printing only the matches themselves with no filenames. Used to harvest all Airtable table or field IDs mentioned anywhere in the build logs. Add `| uniq -c | sort -rn` in place of `sort -u` to rank them by how often each appears.
+
+```bash
+ls -la <dir>
+```
+Lists a directory with file sizes, modification timestamps, and hidden entries. The practical use here is picking the most recent build log out of `docs/build-logs/` to match its format, since the filename date and the actual write date can differ.
 
 ```bash
 node --check < apps-script/Code.gs
