@@ -6,6 +6,24 @@ Entries are listed newest first. Each entry: a title, the date it was found, a s
 
 ---
 
+## Local ticket perspective-correction tool (pre-upload) — does not exist
+
+**Date found:** 2026-08-20
+**Status:** Backlog — not started, needs its own session
+**Where:** Pre-pipeline, local macOS. Feeds the folder-drop path (`00 Ticket Drop`), upstream of A2.
+
+**Problem:** ImageMagick's `-deskew` — used in Scenario B's new Darken task — corrects **rotation only**. It cannot correct **perspective**: a ticket photographed at an angle, so the far edge is narrower than the near edge. Driver dashboard photos have the perspective problem frequently, and **no step in the Make pipeline can fix it.** OCR quality on those images is capped by the geometry, not by the darkening.
+
+**Decision:** build a local macOS CLI on Apple's Vision framework — `VNDetectDocumentSegmentationRequest` (the document-corner detector behind iOS "Scan Documents"), then a four-point perspective warp.
+
+Vision was chosen over OpenCV because it ships with macOS (no pip/opencv dependency to maintain), it is a trained model rather than hand-tuned Canny/contour thresholds, it performs better on cluttered backgrounds, and it **degrades safely** — low confidence means skip, rather than warping to a wrong quadrilateral.
+
+**Shape:** `fixtickets <input-folder> <output-folder>`. Corrects what it is confident about, copies through what it is not, prints a per-file summary. Swift binary. Optionally wrapped in an Apple Shortcut via Run Shell Script — Shortcuts has no native perspective action.
+
+**Scope:** local pre-processing only. **Not part of the Make pipeline.** It fits the folder-drop path because those files pass through Ernie's hands before landing in `00 Ticket Drop`. It does **not** help the Motive backfill — those go API → `01 Intake` untouched.
+
+---
+
 ## Scenario F has no broker filter — it will pull a Statewide batch onto the HSG template
 
 **Date found:** 2026-08-19
@@ -294,6 +312,15 @@ Because module 13 carries `onerror: Ignore`, the rejection was swallowed and the
 
 **Still open underneath this:** `onerror: Ignore` on Scenario D modules 5 and 13 is now *demonstrated* — not just suspected — to swallow a real `422` and drop records while reporting SUCCESS. Same silent-failure family as Scenario B's retry-cap branch and the Import Runs that close `Completed` having produced zero tickets.
 
+### Update — 2026-08-20
+
+**`onerror: [builtin:Ignore]` has been REMOVED from Scenario D modules 5 and 13.** Failures on the extractor HTTP call and the Parser Outputs create now halt the run and surface in History. Confirmed by inspection: the scenario's `usedPackages` no longer contains `"builtin"`. `lastEdit: 2026-08-20T15:43:07Z`.
+
+Two things deliberately left alone:
+
+- **Module 25 still carries `onerror: Ignore`** — it was not part of this change and remains open.
+- **Module 27's `continueWhenNoRes: true` stays.** An unreadable quantity should land in the Validation Queue as Pending Review, not halt the batch — a different failure mode from a `422`, wanting different handling.
+
 ---
 
 ## Document AI extracts the wrong quantity value entirely (not a sanitization problem)
@@ -307,6 +334,14 @@ On the same three-ticket batch as the date guard work, Document AI returned `616
 Module 27's regex sanitizer (`^-?(?<qty>\d+(?:\.\d+)?)`, `continueWhenNoRes: true`) works correctly — it strips unit suffixes and passes a blank through rather than erroring. It cannot help when the wrong number is picked off the page in the first place.
 
 **Possible fix (not applied):** a plausibility-range guard on the same shape as the date guard — a load is realistically 20–30 tons, so anything outside that band is blanked and flagged for manual keying rather than written.
+
+### Update — 2026-08-20
+
+**Correction to the notes, not to this entry:** module 27's sanitizer regex was carried in project notes as an open `quantity_tons` backlog item. It is not — **module 27 already exists** with `^-?(?<qty>\d+(?:\.\d+)?)` and `continueWhenNoRes: true`, closed in a prior session. Those notes were stale. **The plausibility bound described above is the part that is still missing.**
+
+**Second observed case, and a nastier one.** The regex takes the **first** number in the string. On Canfield ticket `395682` the OCR text contains `1905.78 tn` adjacent to the true value `24.11`. The sanitizer returns `1905.78` — and because nothing bounds it, **it passes validation as plausible. Silent, roughly 80x wrong.**
+
+This reframes the fix: the problem is not the regex picking a malformed number, it is the regex picking a *well-formed wrong* number. A better pattern cannot fix that. **Only a range bound can.**
 
 ---
 
