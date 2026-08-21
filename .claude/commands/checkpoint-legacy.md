@@ -1,6 +1,7 @@
 ---
-name: checkpoint
-description: End-of-session Diane 2.0 checkpoint. Writes a local build log, commits and pushes it to GitHub, then updates the local Terminal & Git Glossary (docs/build-logs/terminal-and-git-glossary.md) with any new commands from the session. Runs fully unattended once invoked.
+name: checkpoint-legacy
+disable-model-invocation: true
+description: End-of-session Diane 2.0 checkpoint. Writes a local build log, updates the local Terminal & Git Glossary (docs/build-logs/terminal-and-git-glossary.md) and the Diane 2.0 Bugs & Known Issues log (docs/build-logs/diane-2.0-bugs.md), then commits and pushes it all to GitHub. Runs fully unattended once invoked.
 ---
 
 # Diane 2.0 Checkpoint
