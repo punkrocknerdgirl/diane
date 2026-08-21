@@ -1,9 +1,15 @@
 ---
-name: process-tickets
+name: process-tickets-legacy
+disable-model-invocation: true
 description: Process a zip file of scale tickets — sort by ticket number, darken faded text (color-preserving), merge into one PDF, and return the result. Invoke when Ernie says "process these tickets", "darken and merge", or drops a zip of scale ticket images/PDFs.
 ---
 
-# Process Scale Tickets
+# Process Scale Tickets — RETIRED
+
+> Superseded on 2026-08-21. The `scale-ticket-processor` skill moved to
+> `~/.claude/skills/` and now works in any directory, so this project-scoped
+> wrapper is no longer needed. Kept for reference only; invoke the skill instead.
+
 
 Run the scale ticket processor skill. Load and follow it now:
 
@@ -13,7 +19,7 @@ Run the scale ticket processor skill. Load and follow it now:
 4. Run the script:
 
 ```bash
-python3 skills/scale-ticket-processor/scripts/process_tickets.py \
+python3 ~/.claude/skills/scale-ticket-processor/scripts/process_tickets.py \
   --zip "PATH_TO_ZIP" \
   --output "OUTPUT_PATH" \
   --dpi 150
