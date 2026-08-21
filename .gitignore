@@ -8,3 +8,14 @@ client_secret*.json
 .env.*
 *.pem
 *.key
+
+# Personal editor settings — machine-specific taste, not project config.
+.vscode/
+
+# Python build artifacts.
+__pycache__/
+*.pyc
+
+# Local migration safety backup (binary archives + a git bundle).
+# Kept on disk because 13 build logs reference it; not source, so not committed.
+diane-migration-backup-2026-07-26/
